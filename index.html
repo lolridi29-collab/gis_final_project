@@ -1,1 +1,105 @@
-hi
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Urban Happiness</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Urban Happiness Mapper</h1>
+      <p class="sub">
+        Click the map to choose a location → answer survey → submit. Export GeoJSON/CSV for analysis.
+      </p>
+    </div>
+    <div class="topbar-actions">
+      <button id="btnExportGeoJSON" class="btn">Export GeoJSON</button>
+      <button id="btnExportCSV" class="btn">Export CSV</button>
+      <button id="btnClearAll" class="btn danger">Clear All</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel" id="panel">
+        <div class="sheetHandle" id="sheetHandle">
+            <div class="grabBar"></div>
+            <div class="sheetToggleText" id="sheetToggleText">Tap to open</div>
+        </div>
+      <h2>Survey</h2>
+
+      <div class="hint">
+        <b>1)</b> Click on the map to set a location.<br />
+        <b>2)</b> Fill this form and submit.
+      </div>
+
+      <form id="surveyForm">
+        <div class="field">
+          <label>Selected coordinates</label>
+          <div class="coords">
+            <input id="lat" type="text" placeholder="lat" readonly />
+            <input id="lng" type="text" placeholder="lng" readonly />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="placeName">Place name (optional)</label>
+          <input id="placeName" type="text" placeholder="e.g., Central Park entrance" />
+        </div>
+
+        <!-- Multi-thematic ratings -->
+        <div class="grid2">
+          <div class="field">
+            <label for="like">Less Happiness / More Happiness (1-5)</label>
+            <input id="like" type="range" min="1" max="5" step="1" value="3" />
+            <div class="rangeValue"><span id="likeVal">3</span> / 5</div>
+          </div>
+
+          <div class="field">
+            <label for="safe">Less Green / More Green (1-5)</label>
+            <input id="safe" type="range" min="1" max="5" step="1" value="3" />
+            <div class="rangeValue"><span id="safeVal">3</span> / 5</div>
+          </div>
+
+          <div class="field">
+            <label for="stress">Relaxing / Stressful (1-5)</label>
+            <input id="stress" type="range" min="1" max="5" step="1" value="3" />
+            <div class="rangeValue"><span id="stressVal">3</span> / 5</div>
+          </div>
+
+
+        <div class="field">
+          <label for="comment">Comment (optional)</label>
+          <textarea id="comment" rows="3" placeholder="Why does this place feel that way?"></textarea>
+        </div>
+
+        <div class="field actions">
+          <button class="btn primary" type="submit">Submit point</button>
+          <button class="btn" type="button" id="btnCenterMe">Center map</button>
+        </div>
+      </form>
+
+      <hr class="sep" />
+
+      <hr class="sep" />
+
+      <h2>Collected points</h2>
+      <div id="count" class="count">0 points</div>
+      <div id="list" class="list"></div>
+    </section>
+
+    <section class="mapWrap">
+      <div id="map"></div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

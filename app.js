@@ -1,0 +1,404 @@
+/***********************
+ * PPGIS Urban Mapper
+ * - Click map to set a point
+ * - Submit survey => GeoJSON Feature
+ * - Store in localStorage
+ * - Export GeoJSON + CSV
+ ************************/
+
+const STORAGE_KEY = "ppgis_urban_mapper_v1";
+
+const $ = (sel) => document.querySelector(sel);
+const latEl = $("#lat");
+const lngEl = $("#lng");
+const form = $("#surveyForm");
+const listEl = $("#list");
+const countEl = $("#count");
+const colorByEl = $("#colorBy");
+
+const likeEl = $("#like");
+const safeEl = $("#safe");
+const stressEl = $("#stress");
+const likeVal = $("#likeVal");
+const safeVal = $("#safeVal");
+const stressVal = $("#stressVal");
+
+// --- Mobile bottom sheet toggle (panel overlay)
+const panelEl = document.querySelector("#panel");
+const handleEl = document.querySelector("#sheetHandle");
+const toggleTextEl = document.querySelector("#sheetToggleText");
+
+function isMobileLayout() {
+  return window.matchMedia("(max-width: 900px)").matches;
+}
+
+function setSheet(open) {
+  if (!panelEl) return;
+  panelEl.classList.toggle("open", open);
+  if (toggleTextEl) toggleTextEl.textContent = open ? "Tap to close" : "Tap to open";
+
+  // Leaflet needs a size recalculation after layout changes
+  setTimeout(() => map.invalidateSize(), 250);
+}
+
+if (handleEl && panelEl) {
+  // Default collapsed on mobile, open on desktop
+  setSheet(!isMobileLayout());
+
+  handleEl.addEventListener("click", () => {
+    setSheet(!panelEl.classList.contains("open"));
+  });
+
+  window.addEventListener("resize", () => {
+    // Keep behavior consistent when rotating phone / resizing browser
+    if (isMobileLayout()) {
+      // keep current open/closed state, but recalc map size
+      setTimeout(() => map.invalidateSize(), 150);
+    } else {
+      // On desktop, always open
+      setSheet(true);
+    }
+  });
+}
+
+function setRangeUI() {
+  likeVal.textContent = likeEl.value;
+  safeVal.textContent = safeEl.value;
+  stressVal.textContent = stressEl.value;
+}
+[likeEl, safeEl, stressEl].forEach((r) => r.addEventListener("input", setRangeUI));
+setRangeUI();
+
+// --- Data model: GeoJSON FeatureCollection
+function loadFeatureCollection() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { type: "FeatureCollection", features: [] };
+    const parsed = JSON.parse(raw);
+    if (parsed?.type === "FeatureCollection" && Array.isArray(parsed.features)) return parsed;
+  } catch {}
+  return { type: "FeatureCollection", features: [] };
+}
+
+function saveFeatureCollection(fc) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(fc));
+}
+
+let featureCollection = loadFeatureCollection();
+
+// --- Leaflet map
+const map = L.map("map").setView([48.2082, 16.3738], 12); // default Vienna
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "&copy; OpenStreetMap contributors"
+}).addTo(map);
+
+let selectedLatLng = null;
+let draftMarker = null;
+
+// Layer for saved markers
+const markersLayer = L.layerGroup().addTo(map);
+
+map.on("click", (e) => {
+  selectedLatLng = e.latlng;
+  latEl.value = selectedLatLng.lat.toFixed(6);
+  lngEl.value = selectedLatLng.lng.toFixed(6);
+
+  if (!draftMarker) {
+    draftMarker = L.circleMarker(selectedLatLng, {
+      radius: 10,
+      color: "#7aa2ff",
+      weight: 2,
+      fillColor: "#7aa2ff",
+      fillOpacity: 0.18
+    }).addTo(map);
+  } else {
+    draftMarker.setLatLng(selectedLatLng);
+  }
+});
+
+// Center map on user location (optional)
+$("#btnCenterMe").addEventListener("click", async () => {
+  if (!navigator.geolocation) return alert("Geolocation not supported.");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+    },
+    () => alert("Could not get your location (permission denied?).")
+  );
+});
+
+// --- Helpers
+function uid() {
+  return (crypto.randomUUID && crypto.randomUUID()) ||
+    String(Date.now()) + Math.random().toString(16).slice(2);
+}
+
+function clamp(n, min, max) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function escapeHTML(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
+
+/**
+ * Color rules:
+ * - For numeric themes (1-5): map to red->yellow->green
+ * - For tourist: categorical colors
+ */
+function colorForFeature(feature, mode) {
+  const p = feature.properties;
+
+  if (mode === "tourist") {
+    if (p.tourist === "tourist") return "#ffb020";
+    if (p.tourist === "non-tourist") return "#34d399";
+    return "#a1a1aa"; // mixed/unsure
+  }
+
+  // numeric 1..5
+  const value = Number(p[mode]);
+  const v = clamp(value, 1, 5);
+
+  // 1 red, 3 yellow, 5 green
+  const stops = {
+    1: [255, 95, 109],   // red-ish
+    3: [255, 197, 92],   // yellow-ish
+    5: [52, 211, 153]    // green-ish
+  };
+
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function mix(c1, c2, t){
+    return [
+      Math.round(lerp(c1[0], c2[0], t)),
+      Math.round(lerp(c1[1], c2[1], t)),
+      Math.round(lerp(c1[2], c2[2], t))
+    ];
+  }
+
+  let rgb;
+  if (v <= 3) {
+    const t = (v - 1) / 2; // 1..3
+    rgb = mix(stops[1], stops[3], t);
+  } else {
+    const t = (v - 3) / 2; // 3..5
+    rgb = mix(stops[3], stops[5], t);
+  }
+  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+}
+
+function popupHTML(f) {
+  const p = f.properties;
+  return `
+    <div style="min-width:220px">
+      <div style="font-weight:800;margin-bottom:6px">${escapeHTML(p.placeName || "Unnamed place")}</div>
+      <div style="font-size:12px;opacity:.9;margin-bottom:8px">
+        Like: <b>${p.like}</b> • Safe: <b>${p.safe}</b> • Stress: <b>${p.stress}</b><br/>
+        Tourist: <b>${escapeHTML(p.tourist)}</b>
+      </div>
+      ${p.comment ? `<div style="font-size:12px;white-space:pre-wrap">${escapeHTML(p.comment)}</div>` : ""}
+      <div style="font-size:11px;opacity:.8;margin-top:8px">${new Date(p.timestamp).toLocaleString()}</div>
+    </div>
+  `;
+}
+
+// --- Rendering map markers
+function renderMarkers() {
+  markersLayer.clearLayers();
+  const mode = colorByEl.value;
+
+  featureCollection.features.forEach((f) => {
+    const [lng, lat] = f.geometry.coordinates;
+    const color = colorForFeature(f, mode);
+
+    const marker = L.circleMarker([lat, lng], {
+      radius: 7,
+      color,
+      fillColor: color,
+      fillOpacity: 0.75,
+      weight: 2
+    }).bindPopup(popupHTML(f));
+
+    marker.addTo(markersLayer);
+  });
+}
+
+// --- Rendering sidebar list
+function renderList() {
+  const n = featureCollection.features.length;
+  countEl.textContent = `${n} point${n === 1 ? "" : "s"}`;
+  listEl.innerHTML = "";
+
+  // newest first
+  const features = [...featureCollection.features].sort(
+    (a, b) => b.properties.timestamp - a.properties.timestamp
+  );
+
+  for (const f of features) {
+    const p = f.properties;
+    const [lng, lat] = f.geometry.coordinates;
+
+    const card = document.createElement("div");
+    card.className = "card";
+
+    card.innerHTML = `
+      <div class="cardTitle">${escapeHTML(p.placeName || "Unnamed place")}</div>
+      <div class="cardMeta">
+        ${lat.toFixed(5)}, ${lng.toFixed(5)}<br/>
+        Like: ${p.like} • Safe: ${p.safe} • Stress: ${p.stress} • Tourist: ${escapeHTML(p.tourist)}
+        ${p.comment ? `<div style="margin-top:6px">${escapeHTML(p.comment)}</div>` : ""}
+      </div>
+      <div class="cardActions">
+        <button class="btn" data-action="zoom" data-id="${p.id}">Zoom</button>
+        <button class="btn danger" data-action="delete" data-id="${p.id}">Delete</button>
+      </div>
+    `;
+
+    card.querySelector('[data-action="zoom"]').addEventListener("click", () => {
+      map.setView([lat, lng], 16, { animate: true });
+    });
+
+    card.querySelector('[data-action="delete"]').addEventListener("click", () => {
+      if (!confirm("Delete this point?")) return;
+      featureCollection.features = featureCollection.features.filter(
+        (x) => x.properties.id !== p.id
+      );
+      saveFeatureCollection(featureCollection);
+      renderMarkers();
+      renderList();
+    });
+
+    listEl.appendChild(card);
+  }
+}
+
+// --- Submit survey -> add GeoJSON feature
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  if (!selectedLatLng) {
+    alert("Click on the map to select a location first.");
+    return;
+  }
+
+  const placeName = $("#placeName").value.trim();
+  const like = Number(likeEl.value);
+  const safe = Number(safeEl.value);
+  const stress = Number(stressEl.value);
+  const tourist = $("#tourist").value;
+  const comment = $("#comment").value.trim();
+
+  const feature = {
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      // GeoJSON uses [lng, lat]
+      coordinates: [selectedLatLng.lng, selectedLatLng.lat]
+    },
+    properties: {
+      id: uid(),
+      timestamp: Date.now(),
+      placeName,
+      like,
+      safe,
+      stress,
+      tourist,
+      comment
+    }
+  };
+
+  featureCollection.features.push(feature);
+  saveFeatureCollection(featureCollection);
+
+  // optional: reset form fields (keep ranges maybe)
+  $("#placeName").value = "";
+  $("#comment").value = "";
+
+  renderMarkers();
+  renderList();
+});
+
+// --- Change visualization mode
+colorByEl.addEventListener("change", () => {
+  renderMarkers();
+});
+
+// --- Export GeoJSON
+$("#btnExportGeoJSON").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(featureCollection, null, 2)], { type: "application/geo+json" });
+  downloadBlob(blob, `ppgis-data-${new Date().toISOString().slice(0,10)}.geojson`);
+});
+
+// --- Export CSV
+$("#btnExportCSV").addEventListener("click", () => {
+  const csv = toCSV(featureCollection);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  downloadBlob(blob, `ppgis-data-${new Date().toISOString().slice(0,10)}.csv`);
+});
+
+// --- Clear all
+$("#btnClearAll").addEventListener("click", () => {
+  if (!confirm("Clear ALL points? This cannot be undone.")) return;
+  featureCollection = { type: "FeatureCollection", features: [] };
+  saveFeatureCollection(featureCollection);
+  renderMarkers();
+  renderList();
+});
+
+// --- Download helper
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// --- CSV conversion
+function toCSV(fc) {
+  const headers = [
+    "id","timestamp","placeName","lat","lng","like","safe","stress","tourist","comment"
+  ];
+
+  const rows = fc.features.map((f) => {
+    const p = f.properties;
+    const [lng, lat] = f.geometry.coordinates;
+
+    // Basic CSV escaping: wrap in quotes and double internal quotes
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+
+    return [
+      esc(p.id),
+      esc(new Date(p.timestamp).toISOString()),
+      esc(p.placeName),
+      esc(lat),
+      esc(lng),
+      esc(p.like),
+      esc(p.safe),
+      esc(p.stress),
+      esc(p.tourist),
+      esc(p.comment)
+    ].join(",");
+  });
+
+  return [headers.join(","), ...rows].join("\n");
+}
+
+// --- Initial render
+renderMarkers();
+renderList();
+
+// If existing points exist, fit bounds
+if (featureCollection.features.length > 0) {
+  const latlngs = featureCollection.features.map((f) => {
+    const [lng, lat] = f.geometry.coordinates;
+    return [lat, lng];
+  });
+  const bounds = L.latLngBounds(latlngs);
+  map.fitBounds(bounds.pad(0.2));
+}
