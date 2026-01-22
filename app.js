@@ -38,6 +38,11 @@ async function boot() {
     attribution: "&copy; OpenStreetMap contributors",
   }).addTo(map);
 
+  // 🔧 GitHub Pages / layout timing fix: force Leaflet to recalc container size
+  requestAnimationFrame(() => map.invalidateSize());
+  window.addEventListener("load", () => map.invalidateSize());
+  window.addEventListener("resize", () => map.invalidateSize());
+  
   const markersLayer = L.layerGroup().addTo(map);
 
   // Center HUD + draft marker

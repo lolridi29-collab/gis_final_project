@@ -9,14 +9,16 @@
 }
 
 *{box-sizing:border-box}
-html, body { height: 100%; margin:0; }
+html, body { height: 100%; margin: 0; }
 
 body{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
   background:var(--bg);
   color:var(--text);
-  height:100%;
-  overflow:hidden; /* layout uses internal scrolling */
+  display:flex;         
+  flex-direction:column; 
+  height:100vh;          
+  overflow:hidden;
 }
 
 .topbar{
@@ -51,10 +53,10 @@ body{
 
 /* Desktop layout: panel left, map right */
 .layout{
-  height: calc(100% - 78px); /* approximate topbar height */
+  flex:1;       
+  min-height:0;  
   display:grid;
   grid-template-columns: 360px 1fr;
-  min-height:0;
 }
 
 /* Panel */
