@@ -9,12 +9,9 @@
 const STORAGE_KEY = "ppgis_urban_mapper_v1";
 
 const $ = (sel) => document.querySelector(sel);
-const latEl = $("#lat");
-const lngEl = $("#lng");
 const form = $("#surveyForm");
 const listEl = $("#list");
 const countEl = $("#count");
-const colorByEl = $("#colorBy");
 
 const likeEl = $("#like");
 const safeEl = $("#safe");
@@ -87,7 +84,7 @@ function saveFeatureCollection(fc) {
 let featureCollection = loadFeatureCollection();
 
 // --- Leaflet map
-const map = L.map("map").setView([48.2082, 16.3738], 12); // default Vienna
+const map = L.map("map").setView([47.076420, 15.436907], 12); // default Graz
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution: "&copy; OpenStreetMap contributors"
@@ -101,8 +98,6 @@ const markersLayer = L.layerGroup().addTo(map);
 
 map.on("click", (e) => {
   selectedLatLng = e.latlng;
-  latEl.value = selectedLatLng.lat.toFixed(6);
-  lngEl.value = selectedLatLng.lng.toFixed(6);
 
   if (!draftMarker) {
     draftMarker = L.circleMarker(selectedLatLng, {
@@ -144,59 +139,13 @@ function escapeHTML(s) {
   }[c]));
 }
 
-/**
- * Color rules:
- * - For numeric themes (1-5): map to red->yellow->green
- * - For tourist: categorical colors
- */
-function colorForFeature(feature, mode) {
-  const p = feature.properties;
-
-  if (mode === "tourist") {
-    if (p.tourist === "tourist") return "#ffb020";
-    if (p.tourist === "non-tourist") return "#34d399";
-    return "#a1a1aa"; // mixed/unsure
-  }
-
-  // numeric 1..5
-  const value = Number(p[mode]);
-  const v = clamp(value, 1, 5);
-
-  // 1 red, 3 yellow, 5 green
-  const stops = {
-    1: [255, 95, 109],   // red-ish
-    3: [255, 197, 92],   // yellow-ish
-    5: [52, 211, 153]    // green-ish
-  };
-
-  function lerp(a,b,t){ return a + (b-a)*t; }
-  function mix(c1, c2, t){
-    return [
-      Math.round(lerp(c1[0], c2[0], t)),
-      Math.round(lerp(c1[1], c2[1], t)),
-      Math.round(lerp(c1[2], c2[2], t))
-    ];
-  }
-
-  let rgb;
-  if (v <= 3) {
-    const t = (v - 1) / 2; // 1..3
-    rgb = mix(stops[1], stops[3], t);
-  } else {
-    const t = (v - 3) / 2; // 3..5
-    rgb = mix(stops[3], stops[5], t);
-  }
-  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-}
-
 function popupHTML(f) {
   const p = f.properties;
   return `
     <div style="min-width:220px">
       <div style="font-weight:800;margin-bottom:6px">${escapeHTML(p.placeName || "Unnamed place")}</div>
       <div style="font-size:12px;opacity:.9;margin-bottom:8px">
-        Like: <b>${p.like}</b> • Safe: <b>${p.safe}</b> • Stress: <b>${p.stress}</b><br/>
-        Tourist: <b>${escapeHTML(p.tourist)}</b>
+        Like: <b>${p.like}</b> • Safe: <b>${p.safe}</b> • Stress: <b>${p.stress}</b>
       </div>
       ${p.comment ? `<div style="font-size:12px;white-space:pre-wrap">${escapeHTML(p.comment)}</div>` : ""}
       <div style="font-size:11px;opacity:.8;margin-top:8px">${new Date(p.timestamp).toLocaleString()}</div>
@@ -207,16 +156,14 @@ function popupHTML(f) {
 // --- Rendering map markers
 function renderMarkers() {
   markersLayer.clearLayers();
-  const mode = colorByEl.value;
 
   featureCollection.features.forEach((f) => {
     const [lng, lat] = f.geometry.coordinates;
-    const color = colorForFeature(f, mode);
 
     const marker = L.circleMarker([lat, lng], {
       radius: 7,
-      color,
-      fillColor: color,
+      color: "#ff9500",
+      fillColor: "#ff9500",
       fillOpacity: 0.75,
       weight: 2
     }).bindPopup(popupHTML(f));
@@ -247,7 +194,7 @@ function renderList() {
       <div class="cardTitle">${escapeHTML(p.placeName || "Unnamed place")}</div>
       <div class="cardMeta">
         ${lat.toFixed(5)}, ${lng.toFixed(5)}<br/>
-        Like: ${p.like} • Safe: ${p.safe} • Stress: ${p.stress} • Tourist: ${escapeHTML(p.tourist)}
+        Like: ${p.like} • Safe: ${p.safe} • Stress: ${p.stress}
         ${p.comment ? `<div style="margin-top:6px">${escapeHTML(p.comment)}</div>` : ""}
       </div>
       <div class="cardActions">
@@ -287,7 +234,6 @@ form.addEventListener("submit", (e) => {
   const like = Number(likeEl.value);
   const safe = Number(safeEl.value);
   const stress = Number(stressEl.value);
-  const tourist = $("#tourist").value;
   const comment = $("#comment").value.trim();
 
   const feature = {
@@ -304,7 +250,6 @@ form.addEventListener("submit", (e) => {
       like,
       safe,
       stress,
-      tourist,
       comment
     }
   };
@@ -318,11 +263,6 @@ form.addEventListener("submit", (e) => {
 
   renderMarkers();
   renderList();
-});
-
-// --- Change visualization mode
-colorByEl.addEventListener("change", () => {
-  renderMarkers();
 });
 
 // --- Export GeoJSON
@@ -362,7 +302,7 @@ function downloadBlob(blob, filename) {
 // --- CSV conversion
 function toCSV(fc) {
   const headers = [
-    "id","timestamp","placeName","lat","lng","like","safe","stress","tourist","comment"
+    "id","timestamp","placeName","lat","lng","like","safe","stress","comment"
   ];
 
   const rows = fc.features.map((f) => {
@@ -381,7 +321,6 @@ function toCSV(fc) {
       esc(p.like),
       esc(p.safe),
       esc(p.stress),
-      esc(p.tourist),
       esc(p.comment)
     ].join(",");
   });
