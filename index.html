@@ -17,7 +17,7 @@
     <div>
       <h1>Urban Happiness Mapper</h1>
       <p class="sub">
-        Click the map to choose a location → answer survey → submit. Export GeoJSON/CSV for analysis.
+        Move the map so the crosshair is on your location → answer survey → submit.
       </p>
     </div>
     <div class="topbar-actions">
@@ -28,16 +28,25 @@
   </header>
 
   <main class="layout">
+    <!-- Map FIRST (so on phones it shows above the form) -->
+    <section class="mapWrap">
+      <div id="map"></div>
+
+      <!-- fixed crosshair overlay -->
+      <div class="crosshair" aria-hidden="true"></div>
+
+      <!-- small HUD -->
+      <div class="mapHud" role="status" aria-live="polite">
+        Selected (center): <span id="centerLat">--</span>, <span id="centerLng">--</span>
+      </div>
+    </section>
+
     <section class="panel" id="panel">
-        <div class="sheetHandle" id="sheetHandle">
-            <div class="grabBar"></div>
-            <div class="sheetToggleText" id="sheetToggleText">Tap to open</div>
-        </div>
       <h2>Survey</h2>
 
       <div class="hint">
-        <b>1)</b> Click on the map to set a location.<br />
-        <b>2)</b> Fill this form and submit.
+        <b>1)</b> Pan/zoom the map until the <b>crosshair</b> is on the spot.<br />
+        <b>2)</b> Fill this form and submit (it saves the <b>map center</b>).
       </div>
 
       <form id="surveyForm">
@@ -46,7 +55,6 @@
           <input id="placeName" type="text" placeholder="e.g., Schlossberg" />
         </div>
 
-        <!-- Multi-thematic ratings -->
         <div class="grid2">
           <div class="field">
             <label for="like">Less Happiness / More Happiness (1-5)</label>
@@ -65,7 +73,6 @@
             <input id="stress" type="range" min="1" max="5" step="1" value="3" />
             <div class="rangeValue"><span id="stressVal">3</span> / 5</div>
           </div>
-
         </div>
 
         <div class="field">
@@ -84,10 +91,6 @@
       <h2>Collected points</h2>
       <div id="count" class="count">0 points</div>
       <div id="list" class="list"></div>
-    </section>
-
-    <section class="mapWrap">
-      <div id="map"></div>
     </section>
   </main>
 

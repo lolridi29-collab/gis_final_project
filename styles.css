@@ -8,15 +8,15 @@
   --danger:#ff5f6d;
 }
 
-/* Make height rules bulletproof */
 *{box-sizing:border-box}
 html, body { height: 100%; margin:0; }
+
 body{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
   background:var(--bg);
   color:var(--text);
   height:100%;
-  overflow:hidden; /* important for mobile sheet */
+  overflow:hidden; /* layout uses internal scrolling */
 }
 
 .topbar{
@@ -49,14 +49,15 @@ body{
   border-color:rgba(255,95,109,.35);
 }
 
+/* Desktop layout: panel left, map right */
 .layout{
-  height: calc(100% - 78px); /* space for topbar (approx) */
+  height: calc(100% - 78px); /* approximate topbar height */
   display:grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 360px 1fr;
   min-height:0;
 }
 
-/* Desktop panel */
+/* Panel */
 .panel{
   background:var(--panel);
   border-right:1px solid var(--border);
@@ -65,12 +66,60 @@ body{
 }
 
 /* Map */
-.mapWrap{min-height:0}
-#map{height:100%; width:100%}
+.mapWrap{
+  position:relative;
+  min-height:0;
+}
+#map{
+  height:100%;
+  width:100%;
+}
+
+/* Fixed crosshair (center of screen) */
+.crosshair{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:500;
+}
+.crosshair::before,
+.crosshair::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  background:rgba(255,255,255,.92);
+  box-shadow:0 0 0 2px rgba(0,0,0,.15);
+  border-radius:999px;
+}
+.crosshair::before{ width:34px; height:2px; }
+.crosshair::after{ width:2px; height:34px; }
+
+/* Center dot */
+.crosshair{
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,.95) 0 2px, transparent 3px);
+}
+
+/* Small HUD showing center coords */
+.mapHud{
+  position:absolute;
+  left:10px;
+  bottom:10px;
+  z-index:600;
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:rgba(17,26,46,.78);
+  backdrop-filter: blur(6px);
+  font-size:12px;
+  color:var(--muted);
+  pointer-events:none;
+}
 
 h2{margin:14px 0 10px;font-size:15px}
 .hint{color:var(--muted);font-size:12.5px;line-height:1.35}
-.hint.small{font-size:12px}
 
 .field{margin-top:12px}
 label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
@@ -86,7 +135,6 @@ input, textarea, select{
 }
 textarea{resize:vertical}
 
-.coords{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid2{display:grid;grid-template-columns:1fr;gap:10px}
 .rangeValue{margin-top:6px;font-size:12px;color:var(--muted)}
 .actions{display:flex;gap:10px}
@@ -106,87 +154,26 @@ textarea{resize:vertical}
 .cardActions{display:flex;gap:8px;margin-top:10px}
 
 /* -------------------------
-   Mobile/Tablet bottom sheet
+   Mobile: map + survey visible at the same time (stacked)
    ------------------------- */
-.sheetHandle {
-  display:none; /* only show on mobile */
-}
-
-/* On smaller screens: full map + bottom sheet panel */
 @media (max-width: 900px){
-  .topbar{
-    position: relative;
-    z-index: 5;
-  }
-
   .layout{
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr; /* map fills */
+    grid-template-rows: 52% 48%;  /* both visible */
     height: calc(100% - 78px);
   }
 
   .mapWrap{
-    grid-row: 1 / 2;
-    height: 70vh;
+    border-bottom: 1px solid var(--border);
   }
 
-  /* Turn .panel into a bottom sheet overlay */
   .panel{
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    top: auto;
-    height: 30vh;                 /* opened height */
-    max-height: 78vh;
-    border-right: none;
-    border-top: 1px solid var(--border);
-    border-radius: 18px 18px 0 0;
-    padding: 12px 14px 14px;
-    overflow: auto;
-    z-index: 10;
-
-    transform: translateY(20vh);  /* collapsed position */
-    transition: transform 220ms ease;
-    box-shadow: 0 -18px 40px rgba(0,0,0,0.35);
-    -webkit-overflow-scrolling: touch;
+    border-right:none;
+    border-top:none;
+    overflow:auto;
   }
 
-  .panel.open{
-    transform: translateY(0);
-  }
-
-  /* Drag handle / tap handle */
-  .sheetHandle{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:10px;
-    position: sticky;
-    top: -4px;
-    background: var(--panel);
-    padding: 6px 0 10px;
-    z-index: 20;
-  }
-
-  .grabBar{
-    width: 44px;
-    height: 5px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.25);
-  }
-
-  .sheetToggleText{
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  /* Make buttons easier to tap */
+  /* Make taps easier */
   .btn{ padding: 12px 14px; }
   input, textarea, select{ padding: 12px; }
-
-  /* Avoid map being blocked by topbar + sheet for interactions */
-  #map{
-    height: calc(100% - 0px);
-  }
 }

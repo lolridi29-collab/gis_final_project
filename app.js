@@ -1,6 +1,6 @@
 /***********************
  * PPGIS Urban Mapper
- * - Click map to set a point
+ * - Select location via CENTER crosshair (map center)
  * - Submit survey => GeoJSON Feature
  * - Store in localStorage
  * - Export GeoJSON + CSV
@@ -20,43 +20,8 @@ const likeVal = $("#likeVal");
 const safeVal = $("#safeVal");
 const stressVal = $("#stressVal");
 
-// --- Mobile bottom sheet toggle (panel overlay)
-const panelEl = document.querySelector("#panel");
-const handleEl = document.querySelector("#sheetHandle");
-const toggleTextEl = document.querySelector("#sheetToggleText");
-
-function isMobileLayout() {
-  return window.matchMedia("(max-width: 900px)").matches;
-}
-
-function setSheet(open) {
-  if (!panelEl) return;
-  panelEl.classList.toggle("open", open);
-  if (toggleTextEl) toggleTextEl.textContent = open ? "Tap to close" : "Tap to open";
-
-  // Leaflet needs a size recalculation after layout changes
-  setTimeout(() => map.invalidateSize(), 250);
-}
-
-if (handleEl && panelEl) {
-  // Default collapsed on mobile, open on desktop
-  setSheet(!isMobileLayout());
-
-  handleEl.addEventListener("click", () => {
-    setSheet(!panelEl.classList.contains("open"));
-  });
-
-  window.addEventListener("resize", () => {
-    // Keep behavior consistent when rotating phone / resizing browser
-    if (isMobileLayout()) {
-      // keep current open/closed state, but recalc map size
-      setTimeout(() => map.invalidateSize(), 150);
-    } else {
-      // On desktop, always open
-      setSheet(true);
-    }
-  });
-}
+const centerLatEl = $("#centerLat");
+const centerLngEl = $("#centerLng");
 
 function setRangeUI() {
   likeVal.textContent = likeEl.value;
@@ -84,33 +49,60 @@ function saveFeatureCollection(fc) {
 let featureCollection = loadFeatureCollection();
 
 // --- Leaflet map
-const map = L.map("map").setView([47.076420, 15.436907], 12); // default Graz
+const map = L.map("map", { zoomControl: true }).setView([47.076420, 15.436907], 12); // default Graz
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution: "&copy; OpenStreetMap contributors"
 }).addTo(map);
 
-let selectedLatLng = null;
+// Center-selected location (crosshair)
+let selectedLatLng = map.getCenter();
 let draftMarker = null;
 
 // Layer for saved markers
 const markersLayer = L.layerGroup().addTo(map);
 
-map.on("click", (e) => {
-  selectedLatLng = e.latlng;
+function fmt(n) {
+  return Number(n).toFixed(5);
+}
 
+// Keep selectedLatLng synced to map center (crosshair)
+let rafPending = false;
+function syncCenterSelection() {
+  const c = map.getCenter();
+  selectedLatLng = c;
+
+  if (centerLatEl) centerLatEl.textContent = fmt(c.lat);
+  if (centerLngEl) centerLngEl.textContent = fmt(c.lng);
+
+  // Optional subtle marker at center (helps user notice selection)
   if (!draftMarker) {
-    draftMarker = L.circleMarker(selectedLatLng, {
+    draftMarker = L.circleMarker(c, {
       radius: 10,
       color: "#7aa2ff",
       weight: 2,
       fillColor: "#7aa2ff",
-      fillOpacity: 0.18
+      fillOpacity: 0.12
     }).addTo(map);
   } else {
-    draftMarker.setLatLng(selectedLatLng);
+    draftMarker.setLatLng(c);
   }
-});
+}
+
+function scheduleSync() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => {
+    rafPending = false;
+    syncCenterSelection();
+  });
+}
+
+// Update continuously while moving (smooth) + ensure final update
+map.on("move", scheduleSync);
+map.on("moveend", syncCenterSelection);
+map.on("zoomend", syncCenterSelection);
+syncCenterSelection();
 
 // Center map on user location (optional)
 $("#btnCenterMe").addEventListener("click", async () => {
@@ -118,6 +110,7 @@ $("#btnCenterMe").addEventListener("click", async () => {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+      syncCenterSelection();
     },
     () => alert("Could not get your location (permission denied?).")
   );
@@ -127,10 +120,6 @@ $("#btnCenterMe").addEventListener("click", async () => {
 function uid() {
   return (crypto.randomUUID && crypto.randomUUID()) ||
     String(Date.now()) + Math.random().toString(16).slice(2);
-}
-
-function clamp(n, min, max) {
-  return Math.min(max, Math.max(min, n));
 }
 
 function escapeHTML(s) {
@@ -145,7 +134,7 @@ function popupHTML(f) {
     <div style="min-width:220px">
       <div style="font-weight:800;margin-bottom:6px">${escapeHTML(p.placeName || "Unnamed place")}</div>
       <div style="font-size:12px;opacity:.9;margin-bottom:8px">
-        Like: <b>${p.like}</b> • Safe: <b>${p.safe}</b> • Stress: <b>${p.stress}</b>
+        Happiness: <b>${p.like}</b> • Green: <b>${p.safe}</b> • Stress: <b>${p.stress}</b>
       </div>
       ${p.comment ? `<div style="font-size:12px;white-space:pre-wrap">${escapeHTML(p.comment)}</div>` : ""}
       <div style="font-size:11px;opacity:.8;margin-top:8px">${new Date(p.timestamp).toLocaleString()}</div>
@@ -194,7 +183,7 @@ function renderList() {
       <div class="cardTitle">${escapeHTML(p.placeName || "Unnamed place")}</div>
       <div class="cardMeta">
         ${lat.toFixed(5)}, ${lng.toFixed(5)}<br/>
-        Like: ${p.like} • Safe: ${p.safe} • Stress: ${p.stress}
+        Happiness: ${p.like} • Green: ${p.safe} • Stress: ${p.stress}
         ${p.comment ? `<div style="margin-top:6px">${escapeHTML(p.comment)}</div>` : ""}
       </div>
       <div class="cardActions">
@@ -205,6 +194,7 @@ function renderList() {
 
     card.querySelector('[data-action="zoom"]').addEventListener("click", () => {
       map.setView([lat, lng], 16, { animate: true });
+      syncCenterSelection();
     });
 
     card.querySelector('[data-action="delete"]').addEventListener("click", () => {
@@ -221,14 +211,13 @@ function renderList() {
   }
 }
 
-// --- Submit survey -> add GeoJSON feature
+// --- Submit survey -> add GeoJSON feature (uses map CENTER)
 form.addEventListener("submit", (e) => {
   e.preventDefault();
 
-  if (!selectedLatLng) {
-    alert("Click on the map to select a location first.");
-    return;
-  }
+  // Always use center at submit time
+  const center = map.getCenter();
+  selectedLatLng = center;
 
   const placeName = $("#placeName").value.trim();
   const like = Number(likeEl.value);
@@ -257,7 +246,7 @@ form.addEventListener("submit", (e) => {
   featureCollection.features.push(feature);
   saveFeatureCollection(featureCollection);
 
-  // optional: reset form fields (keep ranges maybe)
+  // Reset some fields
   $("#placeName").value = "";
   $("#comment").value = "";
 
@@ -309,7 +298,6 @@ function toCSV(fc) {
     const p = f.properties;
     const [lng, lat] = f.geometry.coordinates;
 
-    // Basic CSV escaping: wrap in quotes and double internal quotes
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
     return [
@@ -340,4 +328,5 @@ if (featureCollection.features.length > 0) {
   });
   const bounds = L.latLngBounds(latlngs);
   map.fitBounds(bounds.pad(0.2));
+  syncCenterSelection();
 }
