@@ -6,22 +6,29 @@
   --border:rgba(255,255,255,.12);
   --primary:#7aa2ff;
   --danger:#ff5f6d;
+
+  /* bottom bar height (if used) */
+  --bottombar-h: 72px;
 }
 
-*{box-sizing:border-box}
-html, body { height: 100%; margin: 0; }
+*{ box-sizing:border-box; }
+html, body { height:100%; margin:0; }
 
 body{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
   background:var(--bg);
   color:var(--text);
-  display:flex;         
-  flex-direction:column; 
-  height:100vh;          
+
+  /* IMPORTANT: stable full-viewport layout */
+  height:100vh;
+  display:flex;
+  flex-direction:column;
   overflow:hidden;
 }
 
+/* ---------------- Topbar ---------------- */
 .topbar{
+  flex: 0 0 auto;
   padding:14px 16px;
   border-bottom:1px solid var(--border);
   display:flex;
@@ -29,10 +36,11 @@ body{
   justify-content:space-between;
   gap:14px;
 }
-.topbar h1{margin:0;font-size:18px}
-.sub{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.3}
-.topbar-actions{display:flex;gap:10px;flex-wrap:wrap}
+.topbar h1{ margin:0; font-size:18px; }
+.sub{ margin:6px 0 0; color:var(--muted); font-size:13px; line-height:1.3; }
+.topbar-actions{ display:flex; gap:10px; flex-wrap:wrap; }
 
+/* ---------------- Buttons ---------------- */
 .btn{
   border-radius:10px;
   border:1px solid var(--border);
@@ -51,12 +59,17 @@ body{
   border-color:rgba(255,95,109,.35);
 }
 
-/* Desktop layout: panel left, map right */
+/* ---------------- Layout ---------------- */
+/* IMPORTANT: Don't force grid-column numbers; let DOM order place items */
 .layout{
-  flex:1;       
-  min-height:0;  
+  flex: 1 1 auto;
+  min-height: 0;
   display:grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 360px minmax(0, 1fr); /* minmax prevents width=0 */
+  grid-auto-rows: minmax(0, 1fr);
+
+  /* if you use a fixed bottom bar, reserve space so content isn't hidden */
+  padding-bottom: var(--bottombar-h);
 }
 
 /* Panel */
@@ -65,27 +78,30 @@ body{
   border-right:1px solid var(--border);
   padding:14px;
   overflow:auto;
-  grid-column:1;
+  min-height:0;
 }
 
-/* Map */
+/* Map container */
 .mapWrap{
   position:relative;
   min-height:0;
-  grid-column:2;
-  height:100%;
-}
-#map{
   height:100%;
   width:100%;
 }
+#map{
+  width:100%;
+  height:100%;
+  min-height:240px; /* ensures visible map on small heights */
+}
 
-/* Fixed crosshair (center of screen) */
+/* ---------------- Crosshair overlay ---------------- */
 .crosshair{
   position:absolute;
   inset:0;
   pointer-events:none;
   z-index:500;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,.95) 0 2px, transparent 3px);
 }
 .crosshair::before,
 .crosshair::after{
@@ -101,13 +117,7 @@ body{
 .crosshair::before{ width:34px; height:2px; }
 .crosshair::after{ width:2px; height:34px; }
 
-/* Center dot */
-.crosshair{
-  background:
-    radial-gradient(circle at 50% 50%, rgba(255,255,255,.95) 0 2px, transparent 3px);
-}
-
-/* Small HUD showing center coords */
+/* Small HUD */
 .mapHud{
   position:absolute;
   left:10px;
@@ -123,11 +133,12 @@ body{
   pointer-events:none;
 }
 
-h2{margin:14px 0 10px;font-size:15px}
-.hint{color:var(--muted);font-size:12.5px;line-height:1.35}
+/* ---------------- Typography / form ---------------- */
+h2{ margin:14px 0 10px; font-size:15px; }
+.hint{ color:var(--muted); font-size:12.5px; line-height:1.35; }
 
-.field{margin-top:12px}
-label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
+.field{ margin-top:12px; }
+label{ display:block; color:var(--muted); font-size:12px; margin-bottom:6px; }
 
 input, textarea, select{
   width:100%;
@@ -138,34 +149,51 @@ input, textarea, select{
   padding:10px;
   outline:none;
 }
-textarea{resize:vertical}
+textarea{ resize:vertical; }
 
-.grid2{display:grid;grid-template-columns:1fr;gap:10px}
-.rangeValue{margin-top:6px;font-size:12px;color:var(--muted)}
-.actions{display:flex;gap:10px}
+.grid2{ display:grid; grid-template-columns:1fr; gap:10px; }
+.rangeValue{ margin-top:6px; font-size:12px; color:var(--muted); }
+.actions{ display:flex; gap:10px; flex-wrap:wrap; }
 
-.sep{border:none;border-top:1px solid var(--border);margin:14px 0}
+.sep{ border:none; border-top:1px solid var(--border); margin:14px 0; }
 
-.count{margin:8px 0 10px;color:var(--muted);font-size:12px}
-.list{display:grid;gap:10px}
+.count{ margin:8px 0 10px; color:var(--muted); font-size:12px; }
+.list{ display:grid; gap:10px; }
+
 .card{
   border:1px solid var(--border);
   border-radius:12px;
   padding:10px;
   background:rgba(255,255,255,.05);
 }
-.cardTitle{font-weight:800;font-size:13px;margin:0}
-.cardMeta{color:var(--muted);font-size:12px;margin-top:6px;line-height:1.3}
-.cardActions{display:flex;gap:8px;margin-top:10px}
+.cardTitle{ font-weight:800; font-size:13px; margin:0; }
+.cardMeta{ color:var(--muted); font-size:12px; margin-top:6px; line-height:1.3; }
+.cardActions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
 
-/* -------------------------
-   Mobile: map + survey visible at the same time (stacked)
-   ------------------------- */
+/* ---------------- Bottom bar (optional) ---------------- */
+.bottombar{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:1200;
+  padding:12px 16px;
+  background: rgba(17,26,46,.95);
+  border-top:1px solid var(--border);
+  backdrop-filter: blur(8px);
+  display:flex;
+  justify-content:center;
+}
+.bottombar .btn{
+  width:min(520px, 100%);
+}
+
+/* ---------------- Mobile ---------------- */
 @media (max-width: 900px){
   .layout{
     grid-template-columns: 1fr;
-    grid-template-rows: 52% 48%;  /* both visible */
-    height: calc(100% - 78px);
+    /* IMPORTANT: use minmax so map cannot collapse to 0 width/height */
+    grid-template-rows: minmax(260px, 52vh) 1fr;
   }
 
   .mapWrap{
@@ -174,7 +202,6 @@ textarea{resize:vertical}
 
   .panel{
     border-right:none;
-    border-top:none;
     overflow:auto;
   }
 

@@ -25,9 +25,7 @@
         All collected data is anonymous and will be used for research purposes only.
       </p>
     </div>
-    <div class="topbar-actions">
-      <button id="btnFinishSurvey" class="btn">Finish survey</button>
-    </div>
+
   </header>
 
   <main class="layout">
@@ -107,12 +105,18 @@
       <h2>Collected points</h2>
       <div id="count" class="count">0 points</div>
       <div id="list" class="list"></div>
+
+
     </section>
   </main>
 
-  <!-- Scripts ONCE, at the end (order matters) -->
+  <footer class="bottombar">
+    <button id="btnFinishSurvey" class="btn primary">Finish survey</button>
+  </footer>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./app.js"></script>
 </body>
+</html>
 </html>

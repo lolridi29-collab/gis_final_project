@@ -38,11 +38,18 @@ async function boot() {
     attribution: "&copy; OpenStreetMap contributors",
   }).addTo(map);
 
-  // 🔧 GitHub Pages / layout timing fix: force Leaflet to recalc container size
-  requestAnimationFrame(() => map.invalidateSize());
-  window.addEventListener("load", () => map.invalidateSize());
-  window.addEventListener("resize", () => map.invalidateSize());
-  
+  // After map + tile layer
+const refreshMapSize = () => map.invalidateSize();
+
+requestAnimationFrame(refreshMapSize);
+window.addEventListener("load", refreshMapSize);
+window.addEventListener("resize", () => setTimeout(refreshMapSize, 50));
+
+// When switching into/out of the mobile breakpoint, force a repaint
+const mq = window.matchMedia("(max-width: 900px)");
+mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
+
+
   const markersLayer = L.layerGroup().addTo(map);
 
   // Center HUD + draft marker
