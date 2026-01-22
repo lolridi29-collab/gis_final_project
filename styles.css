@@ -63,12 +63,15 @@ body{
   border-right:1px solid var(--border);
   padding:14px;
   overflow:auto;
+  grid-column:1;
 }
 
 /* Map */
 .mapWrap{
   position:relative;
   min-height:0;
+  grid-column:2;
+  height:100%;
 }
 #map{
   height:100%;

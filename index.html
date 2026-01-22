@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Urban Happiness</title>
 
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet CSS (REQUIRED) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
 
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -19,23 +21,21 @@
       <p class="sub">
         Move the map so the crosshair is on your location → answer survey → submit.
       </p>
+      <p class="sub">
+        All collected data is anonymous and will be used for research purposes only.
+      </p>
     </div>
     <div class="topbar-actions">
-      <button id="btnExportGeoJSON" class="btn">Export GeoJSON</button>
-      <button id="btnExportCSV" class="btn">Export CSV</button>
-      <button id="btnClearAll" class="btn danger">Clear All</button>
+      <button id="btnFinishSurvey" class="btn">Finish survey</button>
     </div>
   </header>
 
   <main class="layout">
-    <!-- Map FIRST (so on phones it shows above the form) -->
     <section class="mapWrap">
       <div id="map"></div>
 
-      <!-- fixed crosshair overlay -->
       <div class="crosshair" aria-hidden="true"></div>
 
-      <!-- small HUD -->
       <div class="mapHud" role="status" aria-live="polite">
         Selected (center): <span id="centerLat">--</span>, <span id="centerLng">--</span>
       </div>
@@ -55,6 +55,32 @@
           <input id="placeName" type="text" placeholder="e.g., Schlossberg" />
         </div>
 
+        <div class="field">
+          <label for="ageGroup">Age group</label>
+          <select id="ageGroup">
+            <option value="">Select...</option>
+            <option value="0-19">0-19</option>
+            <option value="20-29">20-29</option>
+            <option value="30-39">30-39</option>
+            <option value="40-49">40-49</option>
+            <option value="50-59">50-59</option>
+            <option value="60-69">60-69</option>
+            <option value="70+">70+</option>
+            <option value="Prefer not to say">Prefer not to say</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="gender">Gender</label>
+          <select id="gender">
+            <option value="">Select...</option>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+            <option value="diverse">Diverse</option>
+            <option value="Prefer not to say">Prefer not to say</option>
+          </select>
+        </div>
+
         <div class="grid2">
           <div class="field">
             <label for="like">Less Happiness / More Happiness (1-5)</label>
@@ -67,13 +93,6 @@
             <input id="safe" type="range" min="1" max="5" step="1" value="3" />
             <div class="rangeValue"><span id="safeVal">3</span> / 5</div>
           </div>
-
-          <div class="field">
-            <label for="stress">Relaxing / Stressful (1-5)</label>
-            <input id="stress" type="range" min="1" max="5" step="1" value="3" />
-            <div class="rangeValue"><span id="stressVal">3</span> / 5</div>
-          </div>
-        </div>
 
         <div class="field">
           <label for="comment">Comment (optional)</label>
@@ -94,6 +113,9 @@
     </section>
   </main>
 
+  <!-- Scripts ONCE, at the end (order matters) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./app.js"></script>
 </body>
 </html>
