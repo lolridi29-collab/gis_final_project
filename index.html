@@ -1,20 +1,26 @@
 <!doctype html>
+<!-- Urban Happiness Mapper - Main HTML Structure
+   This HTML file defines the user interface for the urban happiness survey application.
+   It includes the map display, survey form, and data visualization components.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Urban Happiness</title>
 
-  <!-- Leaflet CSS (REQUIRED) -->
+  <!-- Leaflet CSS (REQUIRED) - Provides styling for the interactive map -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
 
+  <!-- Custom styles for the application layout and components -->
   <link rel="stylesheet" href="./styles.css" />
 </head>
 
 <body>
+  <!-- Top header with application title and instructions -->
   <header class="topbar">
     <div>
       <h1>Urban Happiness Mapper</h1>
@@ -25,31 +31,37 @@
         All collected data is anonymous and will be used for research purposes only.
       </p>
     </div>
-
   </header>
 
+  <!-- Main application layout with map and sidebar -->
   <main class="layout">
+    <!-- Map container section -->
     <section class="mapWrap">
+      <!-- Leaflet map will be rendered here -->
       <div id="map"></div>
-
+      <!-- Visual crosshair to indicate map center for survey submissions -->
       <div class="crosshair" aria-hidden="true"></div>
-
     </section>
 
+    <!-- Survey form and data display sidebar -->
     <section class="panel" id="panel">
       <h2>Survey</h2>
 
+      <!-- Instructions for users on how to use the survey -->
       <div class="hint">
         <b>1)</b> Pan/zoom the map until the <b>crosshair</b> is on the spot.<br />
         <b>2)</b> Fill this form and submit (it saves the <b>map center</b>).
       </div>
 
+      <!-- Survey form for collecting urban happiness data -->
       <form id="surveyForm">
+        <!-- Optional place name input -->
         <div class="field">
           <label for="placeName">Place name (optional)</label>
           <input id="placeName" type="text" placeholder="e.g., Schlossberg" />
         </div>
 
+        <!-- Demographic information: age group selection -->
         <div class="field">
           <label for="ageGroup">Age group</label>
           <select id="ageGroup">
@@ -65,6 +77,7 @@
           </select>
         </div>
 
+        <!-- Demographic information: gender selection -->
         <div class="field">
           <label for="gender">Gender</label>
           <select id="gender">
@@ -76,6 +89,7 @@
           </select>
         </div>
 
+        <!-- Rating sliders for happiness and green space quality -->
         <div class="grid2">
           <div class="field">
             <label for="happy">Less Happiness / More Happiness (1-5)</label>
@@ -88,36 +102,41 @@
             <input id="greeen" type="range" min="1" max="5" step="1" value="3" />
             <div class="rangeValue"><span id="greeenVal">3</span> / 5</div>
           </div>
-          </div>
+        </div>
 
+        <!-- Optional comment field -->
         <div class="field">
           <label for="comment">Comment (optional)</label>
           <textarea id="comment" rows="3" placeholder="Why does this place feel that way?"></textarea>
         </div>
 
+        <!-- Form action buttons -->
         <div class="field actions">
           <button class="btn primary" type="button" id="btnSubmit">Submit point</button>
           <button class="btn" type="button" id="btnCenterMe">Center map</button>
         </div>
       </form>
 
+      <!-- Separator between form and data display -->
       <hr class="sep" />
 
+      <!-- Section displaying collected survey points -->
       <h2>Collected points</h2>
       <div id="count" class="count">0 points</div>
       <div id="list" class="list"></div>
-
-
     </section>
   </main>
 
+  <!-- Bottom footer with survey completion button -->
   <footer class="bottombar">
     <button id="btnFinishSurvey" class="btn primary">Finish survey</button>
   </footer>
 
+  <!-- External JavaScript libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Main application logic -->
   <script src="./app.js"></script>
 </body>
-</html>
 </html>

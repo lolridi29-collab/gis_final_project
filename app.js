@@ -1,6 +1,13 @@
 /***********************
  * Urban Happiness Mapper
  * Leaflet + Supabase
+ *
+ * This application allows users to participate in urban happiness surveys by:
+ * - Placing markers on a map to indicate locations
+ * - Rating happiness and green space quality
+ * - Collecting demographic information
+ * - Viewing submitted points in their current session
+ * - Exporting survey data as CSV
  ************************/
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -12,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function boot() {
   // ---------- Helpers ----------
+  // Utility functions for DOM manipulation and data formatting
   const $ = (sel) => document.querySelector(sel);
   const escapeHTML = (s) =>
     String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -25,9 +33,11 @@ async function boot() {
   const fmt = (n) => Number(n).toFixed(5);
 
   // ---------- Validate Leaflet ----------
+  // Ensure Leaflet library is loaded before proceeding
   if (!window.L) throw new Error("Leaflet not loaded. Check leaflet.js include.");
 
   // ---------- Map FIRST (so it shows even if Supabase fails) ----------
+  // Initialize the Leaflet map with OpenStreetMap tiles
   const mapEl = $("#map");
   if (!mapEl) throw new Error("Missing #map element.");
 
@@ -39,21 +49,23 @@ async function boot() {
   }).addTo(map);
 
   // After map + tile layer
-const refreshMapSize = () => map.invalidateSize();
+  // Handle responsive map sizing for different screen sizes
+  const refreshMapSize = () => map.invalidateSize();
 
-requestAnimationFrame(refreshMapSize);
-window.addEventListener("load", refreshMapSize);
-window.addEventListener("resize", () => setTimeout(refreshMapSize, 50));
+  requestAnimationFrame(refreshMapSize);
+  window.addEventListener("load", refreshMapSize);
+  window.addEventListener("resize", () => setTimeout(refreshMapSize, 50));
 
-// When switching into/out of the mobile breakpoint, force a repaint
-const mq = window.matchMedia("(max-width: 900px)");
-mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
+  // When switching into/out of the mobile breakpoint, force a repaint
+  const mq = window.matchMedia("(max-width: 900px)");
+  mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
 
 
   const draftLayer = L.layerGroup().addTo(map);
   const markersLayer = L.layerGroup().addTo(map);
 
   // Center HUD + draft marker
+  // Display current map center coordinates and show a draft marker
   const centerLatEl = $("#centerLat");
   const centerLngEl = $("#centerLng");
   let draftMarker = null;
@@ -92,6 +104,7 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
   syncCenterSelection();
 
   // ---------- Supabase ----------
+  // Initialize Supabase client for data storage
   if (!window.supabase?.createClient) {
     // Map still works without Supabase; just warn.
     console.warn("Supabase not loaded. Check supabase-js include.");
@@ -104,6 +117,7 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
     : null;
 
   // ---------- UI Elements ----------
+  // Get references to form elements and UI components
   const form = $("#surveyForm");
   const listEl = $("#list");
   const countEl = $("#count");
@@ -118,6 +132,7 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
   const btnSubmit = $("#btnSubmit");
 
   // Range UI (guarded so missing elements don't kill the map)
+  // Update displayed values for range sliders
   function setRangeUI() {
     if (happyEl && happyVal) happyVal.textContent = happyEl.value;
     if (greeenEl && greeenVal) greeenVal.textContent = greeenEl.value;
@@ -126,21 +141,24 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
   setRangeUI();
 
   // ---------- Data state ----------
+  // Local storage for current session's survey points
   let rows = [];
 
-function popupHTML(row) {
-  return `
-    <div style="min-width:220px">
-      <div style="font-weight:800;margin-bottom:6px">${escapeHTML(row.placeName || "Unnamed place")}</div>
-      <div style="font-size:12px;opacity:.9;margin-bottom:8px">
-        Happiness: <b>${escapeHTML(row.happy)}</b> • Green: <b>${escapeHTML(row.greeen)}</b>
+  // Generate HTML for marker popups displaying survey data
+  function popupHTML(row) {
+    return `
+      <div style="min-width:220px">
+        <div style="font-weight:800;margin-bottom:6px">${escapeHTML(row.placeName || "Unnamed place")}</div>
+        <div style="font-size:12px;opacity:.9;margin-bottom:8px">
+          Happiness: <b>${escapeHTML(row.happy)}</b> • Green: <b>${escapeHTML(row.greeen)}</b>
+        </div>
+        ${row.comment ? `<div style="font-size:12px;white-space:pre-wrap">${escapeHTML(row.comment)}</div>` : ""}
+        <div style="font-size:11px;opacity:.8;margin-top:8px">${new Date(row.timestamp).toLocaleString()}</div>
       </div>
-      ${row.comment ? `<div style="font-size:12px;white-space:pre-wrap">${escapeHTML(row.comment)}</div>` : ""}
-      <div style="font-size:11px;opacity:.8;margin-top:8px">${new Date(row.timestamp).toLocaleString()}</div>
-    </div>
-  `;
-}
+    `;
+  }
 
+  // Render orange circle markers on the map for submitted survey points
   function renderMarkers() {
     markersLayer.clearLayers();
     for (const row of rows) {
@@ -162,6 +180,7 @@ function popupHTML(row) {
     }
   }
 
+  // Render the list of collected survey points in the sidebar
   function renderList() {
     if (!listEl || !countEl) return;
 
@@ -204,13 +223,13 @@ function popupHTML(row) {
             const { error } = await supabase.from("submissions").delete().eq("id", row.id);
             if (error) throw error;
           }
-          
+
           // Remove from local session data
           const index = rows.findIndex(r => r.id === row.id);
           if (index > -1) {
             rows.splice(index, 1);
           }
-          
+
           renderMarkers();
           renderList();
         } catch (err) {
@@ -223,6 +242,7 @@ function popupHTML(row) {
     }
   }
 
+  // Update map display and fit bounds if requested (used for initial load)
   async function reload({ fit = false } = {}) {
     // For session-based surveys, we don't load existing data
     // Only show points submitted in this session
@@ -241,6 +261,7 @@ function popupHTML(row) {
   }
 
   // ---------- Form submit ----------
+  // Handle survey form submission
   if (btnSubmit) {
     btnSubmit.addEventListener("click", async () => {
       if (!supabase) return alert("Supabase not available.");
@@ -255,6 +276,7 @@ function popupHTML(row) {
       const gender = $("#gender")?.value || "";
 
       try {
+        // Save survey data to Supabase database
         const { data, error } = await supabase.from("submissions").insert([
           {
             placeName,
@@ -297,6 +319,7 @@ function popupHTML(row) {
   }
 
   // ---------- Center me ----------
+  // Button to center map on user's current location
   btnCenterMe?.addEventListener("click", () => {
     if (!navigator.geolocation) return alert("Geolocation not supported.");
     navigator.geolocation.getCurrentPosition(
@@ -309,28 +332,30 @@ function popupHTML(row) {
   });
 
   // ---------- Export CSV ----------
-function toCSV(data) {
-  const headers = ["id","timestamp","placeName","lat","lng","happy","greeen","comment","age_group","gender"];
-  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  // Convert survey data to CSV format for download
+  function toCSV(data) {
+    const headers = ["id","timestamp","placeName","lat","lng","happy","greeen","comment","age_group","gender"];
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
-  const lines = (data ?? []).map((r) =>
-    [
-      esc(r.id),
-      esc(new Date(r.timestamp).toISOString()),
-      esc(r.placeName),
-      esc(r.lat),
-      esc(r.lng),
-      esc(r.happy),
-      esc(r.greeen),
-      esc(r.comment),
-      esc(r.age_group),
-      esc(r.gender),
-    ].join(",")
-  );
+    const lines = (data ?? []).map((r) =>
+      [
+        esc(r.id),
+        esc(new Date(r.timestamp).toISOString()),
+        esc(r.placeName),
+        esc(r.lat),
+        esc(r.lng),
+        esc(r.happy),
+        esc(r.greeen),
+        esc(r.comment),
+        esc(r.age_group),
+        esc(r.gender),
+      ].join(",")
+    );
 
-  return [headers.join(","), ...lines].join("\n");
-}
+    return [headers.join(","), ...lines].join("\n");
+  }
 
+  // Utility function to trigger file download
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -342,6 +367,7 @@ function toCSV(data) {
     URL.revokeObjectURL(url);
   }
 
+  // Export current session data as CSV and reset the application
   btnFinishSurvey?.addEventListener("click", () => {
     // Export CSV data
     const csv = toCSV(rows);
@@ -353,7 +379,7 @@ function toCSV(data) {
     rows = [];
     markersLayer.clearLayers();
     renderList();
-    
+
     // Reset map view to initial position
     map.setView([47.07642, 15.436907], 12);
     syncCenterSelection();

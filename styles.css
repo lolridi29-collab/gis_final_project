@@ -1,16 +1,23 @@
-:root{
-  --bg:#0b1220;
-  --panel:#111a2e;
-  --text:#e9eefc;
-  --muted:#b6c1df;
-  --border:rgba(255,255,255,.12);
-  --primary:#7aa2ff;
-  --danger:#ff5f6d;
+/* Urban Happiness Mapper - Styles
+   This CSS file provides the visual styling and responsive layout for the urban happiness survey application.
+   It uses CSS custom properties (variables) for consistent theming and includes mobile-responsive design.
+*/
 
-  /* bottom bar height (if used) */
+/* CSS Custom Properties (Variables) for consistent theming */
+:root{
+  --bg:#0b1220;        /* Main background color */
+  --panel:#111a2e;     /* Sidebar panel background */
+  --text:#e9eefc;       /* Primary text color */
+  --muted:#b6c1df;     /* Secondary/muted text color */
+  --border:rgba(255,255,255,.12);  /* Border color with transparency */
+  --primary:#7aa2ff;   /* Primary accent color (blue) */
+  --danger:#ff5f6d;    /* Danger/error color (red) */
+
+  /* Bottom bar height for layout calculations */
   --bottombar-h: 72px;
 }
 
+/* Global reset and base styles */
 *{ box-sizing:border-box; }
 html, body { height:100%; margin:0; }
 
@@ -19,14 +26,14 @@ body{
   background:var(--bg);
   color:var(--text);
 
-  /* IMPORTANT: stable full-viewport layout */
+  /* Full viewport layout to prevent scrolling issues */
   height:100vh;
   display:flex;
   flex-direction:column;
   overflow:hidden;
 }
 
-/* ---------------- Topbar ---------------- */
+/* ---------------- Top Header Bar ---------------- */
 .topbar{
   flex: 0 0 auto;
   padding:14px 16px;
@@ -40,7 +47,7 @@ body{
 .sub{ margin:6px 0 0; color:var(--muted); font-size:13px; line-height:1.3; }
 .topbar-actions{ display:flex; gap:10px; flex-wrap:wrap; }
 
-/* ---------------- Buttons ---------------- */
+/* ---------------- Button Styles ---------------- */
 .btn{
   border-radius:10px;
   border:1px solid var(--border);
@@ -49,18 +56,21 @@ body{
   padding:10px 12px;
   cursor:pointer;
   font-weight:650;
+  transition: all 0.2s ease;
 }
+/* Primary button variant (blue theme) */
 .btn.primary{
   background:rgba(122,162,255,.20);
   border-color:rgba(122,162,255,.35);
 }
+/* Danger button variant (red theme) */
 .btn.danger{
   background:rgba(255,95,109,.15);
   border-color:rgba(255,95,109,.35);
 }
 
-/* ---------------- Layout ---------------- */
-/* IMPORTANT: Don't force grid-column numbers; let DOM order place items */
+/* ---------------- Main Layout Grid ---------------- */
+/* Responsive grid layout: sidebar (360px) + map (remaining space) */
 .layout{
   flex: 1 1 auto;
   min-height: 0;
@@ -68,11 +78,11 @@ body{
   grid-template-columns: 360px minmax(0, 1fr); /* minmax prevents width=0 */
   grid-auto-rows: minmax(0, 1fr);
 
-  /* if you use a fixed bottom bar, reserve space so content isn't hidden */
+  /* Reserve space for bottom bar to prevent content overlap */
   padding-bottom: var(--bottombar-h);
 }
 
-/* Panel */
+/* Sidebar panel styling */
 .panel{
   background:var(--panel);
   border-right:1px solid var(--border);
@@ -81,7 +91,7 @@ body{
   min-height:0;
 }
 
-/* Map container */
+/* Map container styling */
 .mapWrap{
   position:relative;
   min-height:0;
@@ -91,10 +101,11 @@ body{
 #map{
   width:100%;
   height:100%;
-  min-height:240px; /* ensures visible map on small heights */
+  min-height:240px; /* Ensures visible map on small heights */
 }
 
-/* ---------------- Crosshair overlay ---------------- */
+/* ---------------- Crosshair Overlay ---------------- */
+/* Visual crosshair to indicate map center for survey submissions */
 .crosshair{
   position:absolute;
   inset:0;
@@ -114,10 +125,10 @@ body{
   box-shadow:0 0 0 2px rgba(0,0,0,.15);
   border-radius:999px;
 }
-.crosshair::before{ width:34px; height:2px; }
-.crosshair::after{ width:2px; height:34px; }
+.crosshair::before{ width:34px; height:2px; } /* Horizontal line */
+.crosshair::after{ width:2px; height:34px; }   /* Vertical line */
 
-/* Small HUD */
+/* Small HUD overlay for displaying coordinates */
 .mapHud{
   position:absolute;
   left:10px;
@@ -133,7 +144,7 @@ body{
   pointer-events:none;
 }
 
-/* ---------------- Typography / form ---------------- */
+/* ---------------- Form Elements and Typography ---------------- */
 h2{ margin:14px 0 10px; font-size:15px; }
 .hint{ color:var(--muted); font-size:12.5px; line-height:1.35; }
 
@@ -160,6 +171,7 @@ textarea{ resize:vertical; }
 .count{ margin:8px 0 10px; color:var(--muted); font-size:12px; }
 .list{ display:grid; gap:10px; }
 
+/* Survey point cards in the collected points list */
 .card{
   border:1px solid var(--border);
   border-radius:12px;
@@ -170,7 +182,7 @@ textarea{ resize:vertical; }
 .cardMeta{ color:var(--muted); font-size:12px; margin-top:6px; line-height:1.3; }
 .cardActions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
 
-/* ---------------- Bottom bar (optional) ---------------- */
+/* ---------------- Bottom Bar (Fixed Footer) ---------------- */
 .bottombar{
   position:fixed;
   left:0;
@@ -188,11 +200,11 @@ textarea{ resize:vertical; }
   width:min(520px, 100%);
 }
 
-/* ---------------- Mobile ---------------- */
+/* ---------------- Mobile Responsive Design ---------------- */
 @media (max-width: 900px){
+  /* Switch to vertical layout: map on top, panel below */
   .layout{
     grid-template-columns: 1fr;
-    /* IMPORTANT: use minmax so map cannot collapse to 0 width/height */
     grid-template-rows: minmax(260px, 52vh) 1fr;
   }
 
@@ -205,7 +217,7 @@ textarea{ resize:vertical; }
     overflow:auto;
   }
 
-  /* Make taps easier */
+  /* Larger touch targets for mobile */
   .btn{ padding: 12px 14px; }
   input, textarea, select{ padding: 12px; }
 }
