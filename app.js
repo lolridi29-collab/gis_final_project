@@ -50,6 +50,7 @@ const mq = window.matchMedia("(max-width: 900px)");
 mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
 
 
+  const draftLayer = L.layerGroup().addTo(map);
   const markersLayer = L.layerGroup().addTo(map);
 
   // Center HUD + draft marker
@@ -70,7 +71,7 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
         weight: 2,
         fillColor: "#7aa2ff",
         fillOpacity: 0.12,
-      }).addTo(map);
+      }).addTo(draftLayer);
     } else {
       draftMarker.setLatLng(c);
     }
@@ -107,47 +108,47 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
   const listEl = $("#list");
   const countEl = $("#count");
 
-  const likeEl = $("#like");
-  const safeEl = $("#safe");
-  const stressEl = $("#stress");
-  const likeVal = $("#likeVal");
-  const safeVal = $("#safeVal");
-  const stressVal = $("#stressVal");
+  const happyEl = $("#happy");
+  const greeenEl = $("#greeen");
+  const happyVal = $("#happyVal");
+  const greeenVal = $("#greeenVal");
 
   const btnCenterMe = $("#btnCenterMe");
   const btnFinishSurvey = $("#btnFinishSurvey");
+  const btnSubmit = $("#btnSubmit");
 
   // Range UI (guarded so missing elements don't kill the map)
   function setRangeUI() {
-    if (likeEl && likeVal) likeVal.textContent = likeEl.value;
-    if (safeEl && safeVal) safeVal.textContent = safeEl.value;
-    if (stressEl && stressVal) stressVal.textContent = stressEl.value;
+    if (happyEl && happyVal) happyVal.textContent = happyEl.value;
+    if (greeenEl && greeenVal) greeenVal.textContent = greeenEl.value;
   }
-  [likeEl, safeEl, stressEl].filter(Boolean).forEach((r) => r.addEventListener("input", setRangeUI));
+  [happyEl, greeenEl].filter(Boolean).forEach((r) => r.addEventListener("input", setRangeUI));
   setRangeUI();
 
   // ---------- Data state ----------
   let rows = [];
 
-  function popupHTML(row) {
-    return `
-      <div style="min-width:220px">
-        <div style="font-weight:800;margin-bottom:6px">${escapeHTML(row.placeName || "Unnamed place")}</div>
-        <div style="font-size:12px;opacity:.9;margin-bottom:8px">
-          Happiness: <b>${escapeHTML(row.like)}</b> • Green: <b>${escapeHTML(row.safe)}</b> • Stress: <b>${escapeHTML(row.stress)}</b>
-        </div>
-        ${row.comment ? `<div style="font-size:12px;white-space:pre-wrap">${escapeHTML(row.comment)}</div>` : ""}
-        <div style="font-size:11px;opacity:.8;margin-top:8px">${new Date(row.timestamp).toLocaleString()}</div>
+function popupHTML(row) {
+  return `
+    <div style="min-width:220px">
+      <div style="font-weight:800;margin-bottom:6px">${escapeHTML(row.placeName || "Unnamed place")}</div>
+      <div style="font-size:12px;opacity:.9;margin-bottom:8px">
+        Happiness: <b>${escapeHTML(row.happy)}</b> • Green: <b>${escapeHTML(row.greeen)}</b>
       </div>
-    `;
-  }
+      ${row.comment ? `<div style="font-size:12px;white-space:pre-wrap">${escapeHTML(row.comment)}</div>` : ""}
+      <div style="font-size:11px;opacity:.8;margin-top:8px">${new Date(row.timestamp).toLocaleString()}</div>
+    </div>
+  `;
+}
 
   function renderMarkers() {
     markersLayer.clearLayers();
     for (const row of rows) {
       const lat = Number(row.lat);
       const lng = Number(row.lng);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        continue;
+      }
 
       L.circleMarker([lat, lng], {
         radius: 7,
@@ -178,7 +179,7 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
         <div class="cardTitle">${escapeHTML(row.placeName || "Unnamed place")}</div>
         <div class="cardMeta">
           ${Number.isFinite(lat) ? lat.toFixed(5) : "--"}, ${Number.isFinite(lng) ? lng.toFixed(5) : "--"}<br/>
-          Happiness: ${escapeHTML(row.like)} • Green: ${escapeHTML(row.safe)} • Stress: ${escapeHTML(row.stress)}
+          Happiness: ${escapeHTML(row.happy)} • Green: ${escapeHTML(row.greeen)}
           ${row.comment ? `<div style="margin-top:6px">${escapeHTML(row.comment)}</div>` : ""}
         </div>
         <div class="cardActions">
@@ -195,13 +196,23 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
       });
 
       card.querySelector('[data-action="delete"]').addEventListener("click", async () => {
-        if (!supabase) return alert("Supabase not available.");
         if (!confirm("Delete this point?")) return;
 
         try {
-          const { error } = await supabase.from("submissions").delete().eq("id", row.id);
-          if (error) throw error;
-          await reload({ fit: false });
+          // Delete from Supabase
+          if (supabase) {
+            const { error } = await supabase.from("submissions").delete().eq("id", row.id);
+            if (error) throw error;
+          }
+          
+          // Remove from local session data
+          const index = rows.findIndex(r => r.id === row.id);
+          if (index > -1) {
+            rows.splice(index, 1);
+          }
+          
+          renderMarkers();
+          renderList();
         } catch (err) {
           console.error(err);
           alert("Delete failed: " + (err?.message || String(err)));
@@ -213,26 +224,8 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
   }
 
   async function reload({ fit = false } = {}) {
-    if (!supabase) {
-      rows = [];
-      renderMarkers();
-      renderList();
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("submissions")
-        .select("*")
-        .order("timestamp", { ascending: false });
-
-      if (error) throw error;
-      rows = data ?? [];
-    } catch (err) {
-      console.error("Supabase load failed:", err);
-      rows = [];
-    }
-
+    // For session-based surveys, we don't load existing data
+    // Only show points submitted in this session
     renderMarkers();
     renderList();
 
@@ -248,22 +241,21 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
   }
 
   // ---------- Form submit ----------
-  if (form) {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
+  if (btnSubmit) {
+    btnSubmit.addEventListener("click", async () => {
       if (!supabase) return alert("Supabase not available.");
 
       const center = map.getCenter();
 
       const placeName = ($("#placeName")?.value || "").trim();
-      const happy = likeEl ? Number(likeEl.value) : 3;
-      const greeen = safeEl ? Number(safeEl.value) : 3;
+      const happy = happyEl ? Number(happyEl.value) : 3;
+      const greeen = greeenEl ? Number(greeenEl.value) : 3;
       const comment = ($("#comment")?.value || "").trim();
       const age_group = $("#ageGroup")?.value || "";
       const gender = $("#gender")?.value || "";
 
       try {
-        const { error } = await supabase.from("submissions").insert([
+        const { data, error } = await supabase.from("submissions").insert([
           {
             placeName,
             lat: center.lat,
@@ -277,10 +269,26 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
         ]);
         if (error) throw error;
 
+        // Add to local session data for immediate display
+        const newRow = {
+          id: data?.[0]?.id || Date.now(), // Use returned ID or fallback
+          timestamp: new Date().toISOString(),
+          placeName,
+          lat: center.lat,
+          lng: center.lng,
+          happy,
+          greeen,
+          comment,
+          age_group,
+          gender,
+        };
+        rows.unshift(newRow); // Add to beginning of array
+
         if ($("#placeName")) $("#placeName").value = "";
         if ($("#comment")) $("#comment").value = "";
 
-        await reload({ fit: false });
+        renderMarkers();
+        renderList();
       } catch (err) {
         console.error(err);
         alert("Error saving submission: " + (err?.message || String(err)));
@@ -301,28 +309,27 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
   });
 
   // ---------- Export CSV ----------
-  function toCSV(data) {
-    const headers = ["id","timestamp","placeName","lat","lng","like","safe","stress","comment","age_group","gender"];
-    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+function toCSV(data) {
+  const headers = ["id","timestamp","placeName","lat","lng","happy","greeen","comment","age_group","gender"];
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
-    const lines = (data ?? []).map((r) =>
-      [
-        esc(r.id),
-        esc(new Date(r.timestamp).toISOString()),
-        esc(r.placeName),
-        esc(r.lat),
-        esc(r.lng),
-        esc(r.like),
-        esc(r.safe),
-        esc(r.stress),
-        esc(r.comment),
-        esc(r.age_group),
-        esc(r.gender),
-      ].join(",")
-    );
+  const lines = (data ?? []).map((r) =>
+    [
+      esc(r.id),
+      esc(new Date(r.timestamp).toISOString()),
+      esc(r.placeName),
+      esc(r.lat),
+      esc(r.lng),
+      esc(r.happy),
+      esc(r.greeen),
+      esc(r.comment),
+      esc(r.age_group),
+      esc(r.gender),
+    ].join(",")
+  );
 
-    return [headers.join(","), ...lines].join("\n");
-  }
+  return [headers.join(","), ...lines].join("\n");
+}
 
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -336,12 +343,24 @@ mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
   }
 
   btnFinishSurvey?.addEventListener("click", () => {
+    // Export CSV data
     const csv = toCSV(rows);
     downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }),
       `ppgis-data-${new Date().toISOString().slice(0, 10)}.csv`
     );
+
+    // Reset the map and clear all data
+    rows = [];
+    markersLayer.clearLayers();
+    renderList();
+    
+    // Reset map view to initial position
+    map.setView([47.07642, 15.436907], 12);
+    syncCenterSelection();
   });
 
   // ---------- Initial load ----------
-  await reload({ fit: true });
+  // Start with empty session - no existing data loaded
+  renderMarkers();
+  renderList();
 }
