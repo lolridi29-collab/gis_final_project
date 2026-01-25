@@ -1,0 +1,91 @@
+<!doctype html>
+<!-- Urban Happiness Mapper - Points Viewer -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Urban Happiness Mapper | Collected Points</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body class="viewer">
+  <header class="topbar">
+    <div class="brand">
+      <p class="kicker">Graz Urban Well-Being Study</p>
+      <h1>Collected Points</h1>
+      <p class="sub">Browse the latest submissions and explore patterns across the city.</p>
+    </div>
+    <div class="topbar-actions">
+      <a class="btn primary" href="./index.html">Submit a point</a>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="mapWrap">
+      <div id="map"></div>
+    </section>
+
+    <section class="panel" id="panel">
+      <h2>Overview</h2>
+      <div class="statusRow">
+        <div class="statusPill">
+          <span id="statusDot" class="statusDot" aria-hidden="true"></span>
+          <span id="statusText">Connecting...</span>
+        </div>
+        <div class="statusMeta">Last update: <span id="lastSync">--</span></div>
+        <button class="btn ghost" type="button" id="btnRefresh">Refresh</button>
+      </div>
+
+      <div class="stats">
+        <div class="statCard">
+          <div class="statLabel">Visible points</div>
+          <div id="statTotal" class="statValue">0</div>
+        </div>
+        <div class="statCard">
+          <div class="statLabel">Avg happiness</div>
+          <div id="statAvgHappy" class="statValue">--</div>
+        </div>
+        <div class="statCard">
+          <div class="statLabel">Avg green</div>
+          <div id="statAvgGreen" class="statValue">--</div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legendTitle">Map legend</div>
+        <div class="legendRow">
+          <span class="legendDot happy1"></span><span>1</span>
+          <span class="legendDot happy2"></span><span>2</span>
+          <span class="legendDot happy3"></span><span>3</span>
+          <span class="legendDot happy4"></span><span>4</span>
+          <span class="legendDot happy5"></span><span>5</span>
+        </div>
+        <div class="legendHint">Color = happiness, size = green</div>
+      </div>
+
+      <hr class="sep" />
+
+      <h2>All points</h2>
+      <div id="count" class="count">0 points</div>
+      <div id="emptyState" class="emptyState">No points to show yet.</div>
+      <div id="list" class="list"></div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./points.js"></script>
+</body>
+</html>
