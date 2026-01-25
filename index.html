@@ -1,15 +1,19 @@
 <!doctype html>
-<!-- Urban Happiness Mapper - Main HTML Structure
-   This HTML file defines the user interface for the urban happiness survey application.
-   It includes the map display, survey form, and data visualization components.
--->
+<!-- Urban Happiness Mapper - Main HTML Structure -->
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Urban Happiness</title>
+  <title>Urban Happiness Mapper</title>
 
-  <!-- Leaflet CSS (REQUIRED) - Provides styling for the interactive map -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Leaflet CSS (REQUIRED) -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -19,16 +23,17 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 
-<body>
+<body class="survey">
   <!-- Top header with application title and instructions -->
   <header class="topbar">
-    <div>
+    <div class="brand">
+      <p class="kicker">Graz Urban Well-Being Study</p>
       <h1>Urban Happiness Mapper</h1>
       <p class="sub">
-        Move the map so the crosshair is on your location → answer survey → submit.
+        Move the map so the crosshair is on your spot, answer the short survey, then submit.
       </p>
       <p class="sub">
-        All collected data is anonymous and will be used for research purposes only.
+        All collected data is anonymous and used for research purposes only.
       </p>
     </div>
   </header>
@@ -41,27 +46,67 @@
       <div id="map"></div>
       <!-- Visual crosshair to indicate map center for survey submissions -->
       <div class="crosshair" aria-hidden="true"></div>
+      <button class="mapButton" type="button" id="btnCenterMeMap" aria-label="Center map on my location">
+        Locate me
+      </button>
+      <!-- Map HUD showing the current center point -->
+      <div class="mapHud" aria-live="polite">
+        <div class="hudLabel">Map center</div>
+        <div class="hudValue"><span id="centerLat">--</span>, <span id="centerLng">--</span></div>
+        <div class="hudNote">Use the crosshair to choose a spot</div>
+      </div>
     </section>
 
     <!-- Survey form and data display sidebar -->
     <section class="panel" id="panel">
       <h2>Survey</h2>
 
-      <!-- Instructions for users on how to use the survey -->
       <div class="hint">
         <b>1)</b> Pan/zoom the map until the <b>crosshair</b> is on the spot.<br />
         <b>2)</b> Fill this form and submit (it saves the <b>map center</b>).
       </div>
 
+      <section class="infoCard" aria-label="Project information">
+        <div class="infoTitle">Project background</div>
+        <div class="infoRow">
+          <p class="infoText">
+            This project builds on participatory and emotional mapping approaches and research linking
+            green spaces to mental well-being and restoration.
+          </p>
+          <button class="btn ghost infoTrigger" type="button" data-modal-open="infoModal">
+            <span class="infoLabel">Read more &gt;</span>
+            <span class="infoLabelCompact">Read more</span>
+          </button>
+        </div>
+      </section>
+
+      <div class="statusRow compact">
+        <div class="statusPill">
+          <span id="statusDot" class="statusDot" aria-hidden="true"></span>
+          <span id="statusText">Connecting...</span>
+        </div>
+        <div class="statusMeta">Responses stay anonymous.</div>
+      </div>
+
       <!-- Survey form for collecting urban happiness data -->
       <form id="surveyForm">
-        <!-- Optional place name input -->
+        <div class="rangeCard">
+          <div class="field">
+            <label for="happy">Happiness <span class="rangeValueInline" id="happyInline">3 / 5</span></label>
+            <input id="happy" type="range" min="1" max="5" step="1" value="3" />
+          </div>
+
+          <div class="field">
+            <label for="greeen">Greenness <span class="rangeValueInline" id="greeenInline">3 / 5</span></label>
+            <input id="greeen" type="range" min="1" max="5" step="1" value="3" />
+          </div>
+        </div>
+
         <div class="field">
           <label for="placeName">Place name (optional)</label>
           <input id="placeName" type="text" placeholder="e.g., Schlossberg" />
         </div>
 
-        <!-- Demographic information: age group selection -->
         <div class="field">
           <label for="ageGroup">Age group</label>
           <select id="ageGroup">
@@ -77,7 +122,6 @@
           </select>
         </div>
 
-        <!-- Demographic information: gender selection -->
         <div class="field">
           <label for="gender">Gender</label>
           <select id="gender">
@@ -89,48 +133,68 @@
           </select>
         </div>
 
-        <!-- Rating sliders for happiness and green space quality -->
-        <div class="grid2">
-          <div class="field">
-            <label for="happy">Less Happiness / More Happiness (1-5)</label>
-            <input id="happy" type="range" min="1" max="5" step="1" value="3" />
-            <div class="rangeValue"><span id="happyVal">3</span> / 5</div>
-          </div>
-
-          <div class="field">
-            <label for="greeen">Less Green / More Green (1-5)</label>
-            <input id="greeen" type="range" min="1" max="5" step="1" value="3" />
-            <div class="rangeValue"><span id="greeenVal">3</span> / 5</div>
-          </div>
-        </div>
-
-        <!-- Optional comment field -->
         <div class="field">
           <label for="comment">Comment (optional)</label>
           <textarea id="comment" rows="3" placeholder="Why does this place feel that way?"></textarea>
         </div>
 
-        <!-- Form action buttons -->
         <div class="field actions">
-          <button class="btn primary" type="button" id="btnSubmit">Submit point</button>
-          <button class="btn" type="button" id="btnCenterMe">Center map</button>
+          <button class="btn primary" type="submit" id="btnSubmit">Submit point</button>
         </div>
       </form>
-
-      <!-- Separator between form and data display -->
-      <hr class="sep" />
-
-      <!-- Section displaying collected survey points -->
-      <h2>Collected points</h2>
-      <div id="count" class="count">0 points</div>
-      <div id="list" class="list"></div>
+      <div id="submitNotice" class="submitNotice" role="status" aria-live="polite"></div>
     </section>
   </main>
 
-  <!-- Bottom footer with survey completion button -->
-  <footer class="bottombar">
-    <button id="btnFinishSurvey" class="btn primary">Finish survey</button>
-  </footer>
+  <div class="modal" id="infoModal" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle" aria-hidden="true">
+    <div class="modalBackdrop" data-modal-close></div>
+    <div class="modalCard" role="document">
+      <div class="modalHeader">
+        <h3 id="infoModalTitle">About this study</h3>
+        <button class="btn ghost modalClose" type="button" data-modal-close>Close</button>
+      </div>
+      <div class="modalBody">
+        <p>
+          You are invited to take part in our research project. The information you share will help develop a
+          better understanding of how people experience urban places and how these experiences relate to
+          well-being and perceptions of green spaces.
+        </p>
+        <p>
+          This study is part of the course 25W 402.407 Einfuehrung in GIS und digitale Geographien at the
+          University of Graz. The research investigates how individuals perceive happiness, calmness, and
+          green-ness in different urban locations. The project aims to explore spatial patterns in these
+          perceptions and highlight how experiences of the city vary across places and people.
+        </p>
+        <p>
+          Participation involves selecting locations on an interactive map of Graz and answering a short
+          survey about your experience of those places. The survey focuses on happiness, perceived calm, and
+          green-ness, and takes less than 8 minutes to complete. We encourage you to express your views
+          honestly; there are no right or wrong answers, and every perspective is valuable.
+        </p>
+        <p>
+          Participation is voluntary and anonymous. No identifying information (such as names, email
+          addresses, or IP addresses) is collected. You may exit the website at any time before submitting
+          your response. Once the survey is submitted, responses cannot be withdrawn, as no identifying
+          information is stored.
+        </p>
+        <p>
+          All data will be stored securely on the project website database and retained indefinitely for
+          academic and educational purposes only.
+        </p>
+        <p>
+          By continuing with the survey, you provide your informed consent to participate in the study,
+          confirming that you have read and understood the information above and agree to take part.
+        </p>
+        <p>Thank you for your time and contribution!</p>
+        <p>
+          Researchers' details:<br />
+          Student research group, University of Graz<br />
+          Course: Einfuehrung in GIS und digitale Geographien (25W 402.407)<br />
+          Instructor: Thibaud Chassin
+        </p>
+      </div>
+    </div>
+  </div>
 
   <!-- External JavaScript libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

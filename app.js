@@ -3,11 +3,10 @@
  * Leaflet + Supabase
  *
  * This application allows users to participate in urban happiness surveys by:
- * - Placing markers on a map to indicate locations
+ * - Choosing a location via the map center
  * - Rating happiness and green space quality
  * - Collecting demographic information
- * - Viewing submitted points in their current session
- * - Exporting survey data as CSV
+ * - Showing feedback after submission
  ************************/
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -19,53 +18,47 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function boot() {
   // ---------- Helpers ----------
-  // Utility functions for DOM manipulation and data formatting
-  const $ = (sel) => document.querySelector(sel);
-  const escapeHTML = (s) =>
-    String(s ?? "").replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;",
-    })[c]);
-
+  const $ = (sel, root = document) => root.querySelector(sel);
   const fmt = (n) => Number(n).toFixed(5);
 
+  const DEFAULT_CENTER = [47.07642, 15.436907];
+
   // ---------- Validate Leaflet ----------
-  // Ensure Leaflet library is loaded before proceeding
   if (!window.L) throw new Error("Leaflet not loaded. Check leaflet.js include.");
 
-  // ---------- Map FIRST (so it shows even if Supabase fails) ----------
-  // Initialize the Leaflet map with OpenStreetMap tiles
+  // ---------- Map ----------
   const mapEl = $("#map");
   if (!mapEl) throw new Error("Missing #map element.");
 
-  const map = L.map("map", { zoomControl: true }).setView([47.07642, 15.436907], 12);
+  const map = L.map("map", { zoomControl: true }).setView(DEFAULT_CENTER, 12);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap contributors",
   }).addTo(map);
 
-  // After map + tile layer
-  // Handle responsive map sizing for different screen sizes
-  const refreshMapSize = () => map.invalidateSize();
+  const northArrow = L.control({ position: "topright" });
+  northArrow.onAdd = () => {
+    const div = L.DomUtil.create("div", "northArrow leaflet-control");
+    div.innerHTML = "<span>N</span>";
+    return div;
+  };
+  northArrow.addTo(map);
 
+  L.control
+    .scale({ position: "bottomright", imperial: false })
+    .addTo(map);
+
+  const refreshMapSize = () => map.invalidateSize();
   requestAnimationFrame(refreshMapSize);
   window.addEventListener("load", refreshMapSize);
   window.addEventListener("resize", () => setTimeout(refreshMapSize, 50));
 
-  // When switching into/out of the mobile breakpoint, force a repaint
   const mq = window.matchMedia("(max-width: 900px)");
   mq.addEventListener?.("change", () => setTimeout(refreshMapSize, 80));
 
-
   const draftLayer = L.layerGroup().addTo(map);
-  const markersLayer = L.layerGroup().addTo(map);
 
-  // Center HUD + draft marker
-  // Display current map center coordinates and show a draft marker
   const centerLatEl = $("#centerLat");
   const centerLngEl = $("#centerLng");
   let draftMarker = null;
@@ -104,12 +97,6 @@ async function boot() {
   syncCenterSelection();
 
   // ---------- Supabase ----------
-  // Initialize Supabase client for data storage
-  if (!window.supabase?.createClient) {
-    // Map still works without Supabase; just warn.
-    console.warn("Supabase not loaded. Check supabase-js include.");
-  }
-
   const supabaseUrl = "https://fxlskilssvhnatnkeyjk.supabase.co";
   const supabaseKey = "sb_publishable_5tLqrEAMedhEg04I0ZZ4-A_H2CKvjZf";
   const supabase = window.supabase?.createClient
@@ -117,276 +104,213 @@ async function boot() {
     : null;
 
   // ---------- UI Elements ----------
-  // Get references to form elements and UI components
   const form = $("#surveyForm");
-  const listEl = $("#list");
-  const countEl = $("#count");
-
   const happyEl = $("#happy");
   const greeenEl = $("#greeen");
-  const happyVal = $("#happyVal");
-  const greeenVal = $("#greeenVal");
-
-  const btnCenterMe = $("#btnCenterMe");
-  const btnFinishSurvey = $("#btnFinishSurvey");
+  const happyInline = $("#happyInline");
+  const greeenInline = $("#greeenInline");
+  const ageGroupEl = $("#ageGroup");
+  const genderEl = $("#gender");
+  const btnCenterMe = $("#btnCenterMeMap");
   const btnSubmit = $("#btnSubmit");
+  const submitNotice = $("#submitNotice");
+  const submitLabel = btnSubmit?.textContent || "Submit point";
 
-  // Range UI (guarded so missing elements don't kill the map)
-  // Update displayed values for range sliders
-  function setRangeUI() {
-    if (happyEl && happyVal) happyVal.textContent = happyEl.value;
-    if (greeenEl && greeenVal) greeenVal.textContent = greeenEl.value;
+  const statusText = $("#statusText");
+  const statusDot = $("#statusDot");
+  const modalTriggers = document.querySelectorAll("[data-modal-open]");
+
+  function openModal(modal) {
+    if (!modal) return;
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
   }
-  [happyEl, greeenEl].filter(Boolean).forEach((r) => r.addEventListener("input", setRangeUI));
+
+  function closeModal(modal) {
+    if (!modal) return;
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  modalTriggers.forEach((trigger) => {
+    trigger.addEventListener("click", () => {
+      const id = trigger.getAttribute("data-modal-open");
+      openModal(document.getElementById(id));
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const target = event.target.closest("[data-modal-close]");
+    if (!target) return;
+    const modal = target.closest(".modal");
+    closeModal(modal);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const modal = document.querySelector(".modal.is-open");
+    closeModal(modal);
+  });
+
+  function setStatus(state, text) {
+    if (statusDot) statusDot.dataset.state = state;
+    if (statusText) statusText.textContent = text;
+  }
+
+  let baseStatus = { state: "warn", text: "Connecting..." };
+  let statusTimer = null;
+
+  function setBaseStatus(state, text) {
+    baseStatus = { state, text };
+    setStatus(state, text);
+  }
+
+  function flashStatus(state, text, duration = 2600) {
+    setStatus(state, text);
+    if (statusTimer) clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => {
+      setStatus(baseStatus.state, baseStatus.text);
+    }, duration);
+  }
+
+  let noticeTimer = null;
+  function showSubmitNotice(message, tone = "ok") {
+    if (!submitNotice) return;
+    submitNotice.textContent = message;
+    submitNotice.dataset.tone = tone;
+    submitNotice.classList.add("visible");
+    if (noticeTimer) clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => {
+      submitNotice.classList.remove("visible");
+    }, 4200);
+  }
+
+  if (!supabase) {
+    setBaseStatus("error", "Data service unavailable");
+    if (btnSubmit) btnSubmit.disabled = true;
+  } else {
+    setBaseStatus("ok", "Ready to submit");
+  }
+
+  // Range UI
+  function setRangeUI() {
+    if (happyEl && happyInline) happyInline.textContent = `${happyEl.value} / 5`;
+    if (greeenEl && greeenInline) greeenInline.textContent = `${greeenEl.value} / 5`;
+  }
+  [happyEl, greeenEl]
+    .filter(Boolean)
+    .forEach((r) => r.addEventListener("input", setRangeUI));
   setRangeUI();
 
-  // ---------- Data state ----------
-  // Local storage for current session's survey points
-  let rows = [];
+  // No stepper flow in the simplified form.
 
-  // Generate HTML for marker popups displaying survey data
-  function popupHTML(row) {
-    return `
-      <div style="min-width:220px">
-        <div style="font-weight:800;margin-bottom:6px">${escapeHTML(row.placeName || "Unnamed place")}</div>
-        <div style="font-size:12px;opacity:.9;margin-bottom:8px">
-          Happiness: <b>${escapeHTML(row.happy)}</b> • Green: <b>${escapeHTML(row.greeen)}</b>
-        </div>
-        ${row.comment ? `<div style="font-size:12px;white-space:pre-wrap">${escapeHTML(row.comment)}</div>` : ""}
-        <div style="font-size:11px;opacity:.8;margin-top:8px">${new Date(row.timestamp).toLocaleString()}</div>
-      </div>
-    `;
+  function setInvalid(el, isInvalid) {
+    if (!el) return;
+    el.classList.toggle("is-invalid", isInvalid);
   }
 
-  // Render orange circle markers on the map for submitted survey points
-  function renderMarkers() {
-    markersLayer.clearLayers();
-    for (const row of rows) {
-      const lat = Number(row.lat);
-      const lng = Number(row.lng);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        continue;
-      }
-
-      L.circleMarker([lat, lng], {
-        radius: 7,
-        color: "#ff9500",
-        fillColor: "#ff9500",
-        fillOpacity: 0.75,
-        weight: 2,
-      })
-        .bindPopup(popupHTML(row))
-        .addTo(markersLayer);
-    }
-  }
-
-  // Render the list of collected survey points in the sidebar
-  function renderList() {
-    if (!listEl || !countEl) return;
-
-    const n = rows.length;
-    countEl.textContent = `${n} point${n === 1 ? "" : "s"}`;
-    listEl.innerHTML = "";
-
-    for (const row of rows) {
-      const lat = Number(row.lat);
-      const lng = Number(row.lng);
-
-      const card = document.createElement("div");
-      card.className = "card";
-      card.innerHTML = `
-        <div class="cardTitle">${escapeHTML(row.placeName || "Unnamed place")}</div>
-        <div class="cardMeta">
-          ${Number.isFinite(lat) ? lat.toFixed(5) : "--"}, ${Number.isFinite(lng) ? lng.toFixed(5) : "--"}<br/>
-          Happiness: ${escapeHTML(row.happy)} • Green: ${escapeHTML(row.greeen)}
-          ${row.comment ? `<div style="margin-top:6px">${escapeHTML(row.comment)}</div>` : ""}
-        </div>
-        <div class="cardActions">
-          <button class="btn" data-action="zoom">Zoom</button>
-          <button class="btn danger" data-action="delete">Delete</button>
-        </div>
-      `;
-
-      card.querySelector('[data-action="zoom"]').addEventListener("click", () => {
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          map.setView([lat, lng], 16, { animate: true });
-          syncCenterSelection();
-        }
-      });
-
-      card.querySelector('[data-action="delete"]').addEventListener("click", async () => {
-        if (!confirm("Delete this point?")) return;
-
-        try {
-          // Delete from Supabase
-          if (supabase) {
-            const { error } = await supabase.from("submissions").delete().eq("id", row.id);
-            if (error) throw error;
-          }
-
-          // Remove from local session data
-          const index = rows.findIndex(r => r.id === row.id);
-          if (index > -1) {
-            rows.splice(index, 1);
-          }
-
-          renderMarkers();
-          renderList();
-        } catch (err) {
-          console.error(err);
-          alert("Delete failed: " + (err?.message || String(err)));
-        }
-      });
-
-      listEl.appendChild(card);
-    }
-  }
-
-  // Update map display and fit bounds if requested (used for initial load)
-  async function reload({ fit = false } = {}) {
-    // For session-based surveys, we don't load existing data
-    // Only show points submitted in this session
-    renderMarkers();
-    renderList();
-
-    if (fit && rows.length > 0) {
-      const latlngs = rows
-        .map((r) => [Number(r.lat), Number(r.lng)])
-        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
-
-      if (latlngs.length) {
-        map.fitBounds(L.latLngBounds(latlngs).pad(0.2));
-      }
-    }
-  }
+  ageGroupEl?.addEventListener("change", () => setInvalid(ageGroupEl, false));
+  genderEl?.addEventListener("change", () => setInvalid(genderEl, false));
 
   // ---------- Form submit ----------
-  // Handle survey form submission
-  if (btnSubmit) {
-    btnSubmit.addEventListener("click", async () => {
-      if (!supabase) return alert("Supabase not available.");
+  let isSubmitting = false;
 
-      const center = map.getCenter();
+  async function handleSubmit() {
+    if (isSubmitting) return;
+    if (!supabase) {
+      flashStatus("error", "Data service unavailable");
+      showSubmitNotice("We could not submit right now. Please try again later.", "warn");
+      return;
+    }
 
-      const placeName = ($("#placeName")?.value || "").trim();
-      const happy = happyEl ? Number(happyEl.value) : 3;
-      const greeen = greeenEl ? Number(greeenEl.value) : 3;
-      const comment = ($("#comment")?.value || "").trim();
-      const age_group = $("#ageGroup")?.value || "";
-      const gender = $("#gender")?.value || "";
+    const center = map.getCenter();
+    const placeName = ($("#placeName")?.value || "").trim();
+    const happy = happyEl ? Number(happyEl.value) : 3;
+    const greeen = greeenEl ? Number(greeenEl.value) : 3;
+    const comment = ($("#comment")?.value || "").trim();
+    const age_group = ageGroupEl?.value || "";
+    const gender = genderEl?.value || "";
 
-      try {
-        // Save survey data to Supabase database
-        const { data, error } = await supabase.from("submissions").insert([
-          {
-            placeName,
-            lat: center.lat,
-            lng: center.lng,
-            happy,
-            greeen,
-            comment,
-            age_group,
-            gender,
-          },
-        ]);
-        if (error) throw error;
+    const ageInvalid = !age_group;
+    const genderInvalid = !gender;
+    setInvalid(ageGroupEl, ageInvalid);
+    setInvalid(genderEl, genderInvalid);
 
-        // Add to local session data for immediate display
-        const newRow = {
-          id: data?.[0]?.id || Date.now(), // Use returned ID or fallback
-          timestamp: new Date().toISOString(),
-          placeName,
-          lat: center.lat,
-          lng: center.lng,
-          happy,
-          greeen,
-          comment,
-          age_group,
-          gender,
-        };
-        rows.unshift(newRow); // Add to beginning of array
+    if (ageInvalid || genderInvalid) {
+      flashStatus("warn", "Select age group and gender (or choose Prefer not to say).");
+      return;
+    }
 
-        if ($("#placeName")) $("#placeName").value = "";
-        if ($("#comment")) $("#comment").value = "";
+    const payload = {
+      placeName,
+      lat: center.lat,
+      lng: center.lng,
+      happy,
+      greeen,
+      comment,
+      age_group,
+      gender,
+    };
 
-        renderMarkers();
-        renderList();
-      } catch (err) {
-        console.error(err);
-        alert("Error saving submission: " + (err?.message || String(err)));
+    isSubmitting = true;
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = "Saving...";
+    }
+
+    try {
+      const { error } = await supabase.from("submissions").insert([payload]);
+      if (error) throw error;
+
+      flashStatus("ok", "Submission saved");
+      showSubmitNotice("Thanks! Your response is saved.");
+      if ($("#placeName")) $("#placeName").value = "";
+      if ($("#comment")) $("#comment").value = "";
+    } catch (err) {
+      console.error(err);
+      flashStatus("error", "Submission failed");
+      showSubmitNotice("We could not submit right now. Please try again.", "warn");
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = "Submitted!";
+        setTimeout(() => {
+          btnSubmit.textContent = submitLabel;
+        }, 1600);
       }
-    });
+      isSubmitting = false;
+    }
   }
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleSubmit();
+  });
 
   // ---------- Center me ----------
-  // Button to center map on user's current location
   btnCenterMe?.addEventListener("click", () => {
-    if (!navigator.geolocation) return alert("Geolocation not supported.");
+    if (!navigator.geolocation) {
+      flashStatus("warn", "Geolocation not supported by this browser.");
+      return;
+    }
+
+    const originalLabel = btnCenterMe.textContent;
+    btnCenterMe.disabled = true;
+    btnCenterMe.textContent = "Locating...";
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+        map.setView([pos.coords.latitude, pos.coords.longitude], 15, { animate: true });
         syncCenterSelection();
+        btnCenterMe.disabled = false;
+        btnCenterMe.textContent = originalLabel;
       },
-      () => alert("Could not get your location (permission denied?).")
+      () => {
+        flashStatus("warn", "Could not get your location (permission denied?).");
+        btnCenterMe.disabled = false;
+        btnCenterMe.textContent = originalLabel;
+      }
     );
   });
-
-  // ---------- Export CSV ----------
-  // Convert survey data to CSV format for download
-  function toCSV(data) {
-    const headers = ["id","timestamp","placeName","lat","lng","happy","greeen","comment","age_group","gender"];
-    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-
-    const lines = (data ?? []).map((r) =>
-      [
-        esc(r.id),
-        esc(new Date(r.timestamp).toISOString()),
-        esc(r.placeName),
-        esc(r.lat),
-        esc(r.lng),
-        esc(r.happy),
-        esc(r.greeen),
-        esc(r.comment),
-        esc(r.age_group),
-        esc(r.gender),
-      ].join(",")
-    );
-
-    return [headers.join(","), ...lines].join("\n");
-  }
-
-  // Utility function to trigger file download
-  function downloadBlob(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  // Export current session data as CSV and reset the application
-  btnFinishSurvey?.addEventListener("click", () => {
-    // Export CSV data
-    const csv = toCSV(rows);
-    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }),
-      `ppgis-data-${new Date().toISOString().slice(0, 10)}.csv`
-    );
-
-    // Reset the map and clear all data
-    rows = [];
-    markersLayer.clearLayers();
-    renderList();
-
-    // Reset map view to initial position
-    map.setView([47.07642, 15.436907], 12);
-    syncCenterSelection();
-  });
-
-  // ---------- Initial load ----------
-  // Start with empty session - no existing data loaded
-  renderMarkers();
-  renderList();
 }
